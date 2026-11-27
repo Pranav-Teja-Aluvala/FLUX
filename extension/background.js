@@ -94,7 +94,7 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
       const [result] = await chrome.scripting.executeScript({
         target: { tabId: id },
         world: "MAIN",
-        args: [seek, message.time, message.videoId],
+        args: seek ? [true, message.time, message.videoId] : [false, null, null],
         func: async (seek, time, videoId) => {
           const video = document.querySelector(
             "#movie_player video, ytmusic-player video",
@@ -103,7 +103,8 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
           if (seek) {
             if (
               new URL(location.href).searchParams.get("v") !== videoId ||
-              !Number.isFinite(video.duration)
+              !Number.isFinite(video.duration) ||
+              video.closest(".ad-showing")
             )
               return false;
             video.currentTime = Math.max(0, Math.min(video.duration, time));

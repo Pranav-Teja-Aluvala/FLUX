@@ -52,6 +52,7 @@ function getSpeech() {
 export function useLocalCaptions(
   track: MediaStreamTrack | undefined,
   enabled: boolean,
+  sourceKey?: string,
 ) {
   const [text, setText] = useState(""),
     [state, setState] = useState<CaptionState>("idle"),
@@ -140,7 +141,7 @@ export function useLocalCaptions(
         } catch {}
       }
     };
-  }, [track, enabled, reload]);
+  }, [track, enabled, reload, sourceKey]);
   async function install() {
     const engine = getSpeech();
     if (!engine) return;

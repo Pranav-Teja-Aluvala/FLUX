@@ -5,6 +5,7 @@ export type Track = {
   album: string;
   cover: string | null;
   playing: boolean;
+  buffering?: boolean;
   position?: number;
   sampledAt?: number;
   duration?: number;

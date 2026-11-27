@@ -32,16 +32,12 @@ function readPlayer() {
         }
       : null;
   const chapters = [];
-  let markerGroups;
-  try {
-    markerGroups =
-      player.getPlayerResponse?.()?.playerOverlays?.playerOverlayRenderer
-        ?.decoratedPlayerBarRenderer?.decoratedPlayerBarRenderer?.playerBar
-        ?.multiMarkersPlayerBarRenderer?.markersMap;
-  } catch {
-    /* The public DOM remains available when the player internals change. */
-  }
-  for (const group of markerGroups ?? [])
+  const response = playerResponse();
+  const markerGroups =
+    response?.playerOverlays?.playerOverlayRenderer
+      ?.decoratedPlayerBarRenderer?.decoratedPlayerBarRenderer?.playerBar
+      ?.multiMarkersPlayerBarRenderer?.markersMap;
+  for (const group of Array.isArray(markerGroups) ? markerGroups : [])
     for (const entry of group.value?.chapters ?? []) {
       const marker = entry.chapterRenderer;
       const title =
@@ -56,7 +52,7 @@ function readPlayer() {
     "#description-inline-expander #description, #description-inline-expander, #description",
   );
   if (!chapters.length && description)
-    for (const line of description.innerText.split("\n")) {
+    for (const line of (description.innerText ?? "").split("\n")) {
       const match = line
         .trim()
         .match(/^(\d{1,2}(?::\d{2}){1,2})[\s–—:|.-]+(.{3,159})$/);
@@ -73,13 +69,21 @@ function readPlayer() {
   const header = document
     .querySelector("h1.ytd-watch-metadata, h1.ytd-video-primary-info-renderer")
     ?.textContent.trim();
-  const activeChapter = player
-    .querySelector(".ytp-chapter-title-content")
-    ?.textContent.trim();
+  function playerResponse() {
+    try {
+      return player.getPlayerResponse?.();
+    } catch {
+      return undefined;
+    }
+  }
+  const id = new URL(location.href).searchParams.get("v");
+  const details = response?.videoDetails;
+  if (id && details?.videoId && details.videoId !== id) return null;
+  const metadata = navigator.mediaSession?.metadata;
   const name =
     chapter?.title ||
-    activeChapter ||
-    navigator.mediaSession.metadata?.title ||
+    metadata?.title ||
+    details?.title ||
     header ||
     document.title.replace(/ - YouTube$/, "");
   const pair = name.match(/^(.+?)\s+[-–—]\s+(.+)$/);
@@ -90,9 +94,7 @@ function readPlayer() {
     .replace(/\s+-\s+Topic$/, "");
   const artist =
     pair?.[1] ||
-    (chapter || activeChapter
-      ? ""
-      : navigator.mediaSession.metadata?.artist || channel);
+    (chapter ? "" : metadata?.artist || details?.author || channel);
   const cueText = Array.from(video.textTracks ?? [])
     .flatMap((track) =>
       Array.from(track.activeCues ?? []).map((cue) => cue.text ?? ""),
@@ -106,7 +108,6 @@ function readPlayer() {
       .join(" ")
       .trim();
   const start = chapter?.start ?? 0;
-  const id = new URL(location.href).searchParams.get("v");
   return {
     title: pair?.[2] || name,
     videoId: id && /^[a-zA-Z0-9_-]{11}$/.test(id) ? id : undefined,
@@ -114,7 +115,8 @@ function readPlayer() {
     artist,
     album: "",
     cover: null,
-    playing: !video.paused,
+    playing: !video.paused && !video.ended,
+    buffering: video.seeking || video.readyState < 3,
     position: video.currentTime - start,
     duration: (next?.start ?? video.duration) - start,
     sampledAt: Date.now(),

@@ -42,30 +42,52 @@ export type LyricsMatch = {
   duration: number;
   syncedLyrics: string;
 };
+let retryAfter = 0;
 export async function findLyrics(
   title: string,
   artist: string,
   signal: AbortSignal,
 ): Promise<LyricsMatch[]> {
+  if (Date.now() < retryAfter)
+    throw Error("Lyrics search is rate limited. Try again shortly.");
   const q = new URLSearchParams({ track_name: title });
   if (artist) q.set("artist_name", artist);
   const r = await fetch("https://lrclib.net/api/search?" + q, {
     signal: AbortSignal.any([signal, AbortSignal.timeout(9000)]),
+    headers: {
+      "Lrclib-Client": "FLUX (https://github.com/Pranav-Teja-Aluvala/FLUX)",
+    },
   });
-  if (r.status === 429)
+  if (r.status === 429) {
+    const retry = r.headers.get("Retry-After");
+    const deadline = retry && /^\d+$/.test(retry)
+      ? Date.now() + Number(retry) * 1000
+      : Date.parse(retry ?? "");
+    retryAfter = Number.isFinite(deadline) ? deadline : Date.now() + 30_000;
     throw Error(
       "Lyrics search is rate limited. Try again shortly or open an LRC file.",
     );
+  }
   if (!r.ok)
     throw Error("Lyrics lookup failed. You can still open a local LRC file.");
-  const matches: LyricsMatch[] = await r.json();
-  return matches
-    .filter(
-      (v) =>
-        typeof v.syncedLyrics === "string" &&
-        parseLrc(v.syncedLyrics).some((line) => line.text),
-    )
-    .slice(0, 8);
+  const matches: unknown = await r.json();
+  if (!Array.isArray(matches)) throw Error("Unexpected lyrics response.");
+  return matches.filter(
+    (v) =>
+      typeof v?.syncedLyrics === "string" &&
+      typeof v.trackName === "string" &&
+      typeof v.artistName === "string" &&
+      Number.isFinite(v.duration) &&
+      parseLrc(v.syncedLyrics).some((line) => line.text),
+  );
+}
+
+export function cleanYouTubeTitle(title: string) {
+  // Remove upload labels while keeping recording qualifiers such as acoustic.
+  return title.trim().replace(
+    /(?:\s*[([（【]\s*(?:(?:official\s+)?(?:music\s+video|video|audio|lyric(?:s)?\s+video|visuali[sz]er)|official\s+lyrics)\s*[)\]）】])+$/iu,
+    "",
+  ).trim();
 }
 
 export function exactRecording(

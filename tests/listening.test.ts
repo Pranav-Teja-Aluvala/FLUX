@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { currentLine, parseLrc } from "../src/lyrics";
+import { cleanYouTubeTitle, currentLine, exactRecording, parseLrc } from "../src/lyrics";
 import { paletteFromPixels } from "../src/desktop";
 
 test("LRC sorts repeat tags, keeps silence markers, and applies millisecond offset", () => {
@@ -22,6 +22,22 @@ test("video palette changes when the dominant pixels change", () => {
   const blue = paletteFromPixels(new Uint8ClampedArray([35, 40, 220, 255]));
   assert.equal(red[0], "#dc281e");
   assert.equal(blue[0], "#2328dc");
+});
+
+test("YouTube upload labels do not prevent matching or erase recording versions", () => {
+  const recording = {
+    id: 1,
+    trackName: "Example Song",
+    artistName: "Example Artist",
+    albumName: "",
+    duration: 210,
+    syncedLyrics: "[00:01]Example",
+  };
+  const match = (title: string, duration = 210) =>
+    exactRecording([recording], cleanYouTubeTitle(title), "Example Artist", duration);
+  assert.equal(match(" Example Song (Official Music Video) [Audio] "), recording);
+  assert.equal(match("Example Song (Strings Version) [Official Audio]"), undefined);
+  assert.equal(match("Example Song", 260), undefined);
 });
 
 import { boundedCrop, contentCrop } from "../src/media-preview";

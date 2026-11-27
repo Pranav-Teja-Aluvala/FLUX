@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
+import type { CSSProperties } from "react";
 import type { Track } from "./desktop";
 import {
+  cleanYouTubeTitle,
   currentLine,
   exactRecording,
   findLyrics,
@@ -15,22 +17,22 @@ function stamp(t: number) {
 export function ExtensionTheater({
   track,
   clock,
-  active,
   caption,
   captionState,
   enableCaptions,
   thumbnail,
+  accent,
   stop,
   audioBlocked,
   enableAudio,
 }: {
   track: Track | null;
   clock: () => number;
-  active: boolean;
   caption: string;
   captionState: string;
   enableCaptions: () => void;
   thumbnail?: string;
+  accent?: string;
   stop: () => void;
   audioBlocked: boolean;
   enableAudio: () => void;
@@ -39,12 +41,14 @@ export function ExtensionTheater({
     [looking, setLooking] = useState(false),
     [position, setPosition] = useState(0);
   const [commandError, setCommandError] = useState("");
+  const [lookupFailed, setLookupFailed] = useState(false);
+  const [attempt, setAttempt] = useState(0);
   const [captionRows, setCaptionRows] = useState<string[]>([]);
   const scroll = useRef<HTMLDivElement>(null),
     highlight = useRef<HTMLButtonElement>(null);
   const clockRef = useRef(clock);
   clockRef.current = clock;
-  const title = track?.title ?? "",
+  const title = cleanYouTubeTitle(track?.title ?? ""),
     artist = track?.artist ?? "",
     duration = Math.round(track?.duration ?? 0);
   const cue = track?.caption || caption;
@@ -52,8 +56,8 @@ export function ExtensionTheater({
   useEffect(() => {
     setLines([]);
     setLooking(false);
-    setCaptionRows([]);
-    if (!active || !title || !duration) return;
+    setLookupFailed(false);
+    if (!title || !duration) return;
     const request = new AbortController();
     setLooking(true);
     findLyrics(title, artist, request.signal)
@@ -63,13 +67,15 @@ export function ExtensionTheater({
           const match = exactRecording(matches, title, artist, duration);
           if (match) setLines(parseLrc(match.syncedLyrics));
         },
-        () => {},
+        () => {
+          if (!request.signal.aborted) setLookupFailed(true);
+        },
       )
       .finally(() => {
         if (!request.signal.aborted) setLooking(false);
       });
     return () => request.abort();
-  }, [active, title, artist, duration]);
+  }, [title, artist, duration, attempt]);
   useEffect(() => {
     const tick = () => setPosition(clockRef.current());
     tick();
@@ -88,7 +94,10 @@ export function ExtensionTheater({
     });
   }, [index, lines]);
   useEffect(() => {
-    if (!cue) return;
+    if (!cue) {
+      const expire = window.setTimeout(() => setCaptionRows([]), 2800);
+      return () => clearTimeout(expire);
+    }
     setCaptionRows((previous) => {
       const latest = previous.at(-1);
       if (latest === cue) return previous;
@@ -114,9 +123,26 @@ export function ExtensionTheater({
       setCommandError("The linked YouTube tab is unavailable.");
   }
   return (
-    <section className="extension-theater" aria-label="FLUX listening">
+    <section
+      className="extension-theater"
+      aria-label="FLUX listening"
+      style={
+        accent ? ({ "--track-accent": accent } as CSSProperties) : undefined
+      }
+    >
       {thumbnail && <img className="theater-backdrop" src={thumbnail} alt="" />}
       <div className="theater-shade" />
+      <header className="theater-brand">
+        <span className="theater-wordmark">FLUX</span>
+        {track && (
+          <span
+            className="theater-state"
+            data-playing={track.playing && !track.buffering}
+          >
+            {track.buffering ? "Buffering" : track.playing ? "Playing" : "Paused"}
+          </span>
+        )}
+      </header>
       <div className="theater-copy">
         <header className="theater-lyrics-title">
           <h2>
@@ -138,7 +164,7 @@ export function ExtensionTheater({
                 line.text ? (
                   <li key={i} data-current={i === index} data-past={i < index}>
                     {track?.videoId ? (
-                      <button
+              <button
                         ref={i === index ? highlight : undefined}
                         aria-current={i === index ? "true" : undefined}
                         onClick={() => void seek(line.time)}
@@ -170,14 +196,25 @@ export function ExtensionTheater({
         ) : (
           <div className="theater-empty" role="status">
             <p>
-              {looking
-                ? "Finding the timed recording…"
-                : captionState === "listening"
-                  ? "Listening for captions…"
-                  : "Lyrics aren’t available for this recording."}
+              {!track
+                ? "Waiting for a video in the linked YouTube tab."
+                : looking
+                  ? "Finding synced lyrics…"
+                  : captionState === "listening"
+                    ? "Listening for live captions…"
+                    : captionState === "preparing"
+                      ? "Preparing live captions…"
+                      : lookupFailed
+                        ? "Lyrics lookup is temporarily unavailable."
+                        : "No timed lyrics found for this recording."}
             </p>
             {captionState === "downloadable" && !looking && (
               <button onClick={enableCaptions}>Enable live captions</button>
+            )}
+            {lookupFailed && !looking && (
+              <button onClick={() => setAttempt((value) => value + 1)}>
+                Retry lyrics
+              </button>
             )}
           </div>
         )}
@@ -190,22 +227,32 @@ export function ExtensionTheater({
             {artist && <span>{artist}</span>}
           </div>
         </div>
-        <div className="theater-time" aria-label="Song progress">
-          <span>{stamp(Math.max(0, position))}</span>
-          <progress
-            value={Math.min(duration, Math.max(0, position))}
-            max={duration || 1}
-          />
-          <span>{stamp(duration)}</span>
-        </div>
+        {track && (
+          <div className="theater-time">
+            <span>{stamp(Math.max(0, position))}</span>
+            <progress
+              aria-label="Song progress"
+              value={Math.min(duration, Math.max(0, position))}
+              max={duration || 1}
+            />
+            <span>{stamp(duration)}</span>
+          </div>
+        )}
         <div className="theater-actions">
           {audioBlocked && <button onClick={enableAudio}>Enable audio</button>}
           {track && (
             <button
+              className="theater-play"
               onClick={() => void togglePlay()}
               aria-label={track.playing ? "Pause video" : "Play video"}
             >
-              {track.playing ? "Ⅱ" : "▶"}
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                {track.playing ? (
+                  <path d="M7 5h3v14H7zm7 0h3v14h-3z" />
+                ) : (
+                  <path d="M8 5v14l11-7z" />
+                )}
+              </svg>
             </button>
           )}
           <button onClick={stop}>Disconnect</button>

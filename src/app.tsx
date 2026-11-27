@@ -117,6 +117,12 @@ function App() {
   const [thumbnail, setThumbnail] = useState<string>();
   const [thumbnailPalette, setThumbnailPalette] = useState<CoverPalette>();
   const thumbnailId = playerTrack?.videoId;
+  const listeningKey = JSON.stringify([
+    thumbnailId,
+    playerTrack?.chapterStart,
+    playerTrack?.title,
+    playerTrack?.artist,
+  ]);
   useEffect(() => {
     setThumbnail(undefined);
     setThumbnailPalette(undefined);
@@ -132,9 +138,15 @@ function App() {
       for (const rendition of ["hq720", "hqdefault"]) {
         const response = await fetch(
           "https://i.ytimg.com/vi/" + thumbnailId + "/" + rendition + ".jpg",
-          { signal: controller.signal },
-        );
-        if (!response.ok) continue;
+          {
+            signal: AbortSignal.any([
+              controller.signal,
+              AbortSignal.timeout(3500),
+            ]),
+          },
+        ).catch(() => undefined);
+        if (controller.signal.aborted) return;
+        if (!response?.ok) continue;
         const blob = await response.blob();
         if (controller.signal.aborted) return;
         url = URL.createObjectURL(blob);
@@ -173,6 +185,7 @@ function App() {
   const speech = useLocalCaptions(
     shared?.getAudioTracks()[0],
     captionFallback && !playerTrack?.caption,
+    inExtension ? listeningKey : undefined,
   );
   const [albumColors, setAlbumColors] = useState<CoverPalette>();
   const [followCover, setFollowCover] = useState(true);
@@ -290,8 +303,8 @@ function App() {
       (playerTrack.duration ?? 0) > 0
     ) {
       const age =
-        playerTrack.sampledAt && playerTrack.playing
-          ? Math.max(0, (Date.now() - playerTrack.sampledAt) / 1000)
+        playerTrack.sampledAt && playerTrack.playing && !playerTrack.buffering
+          ? Math.min(0.8, Math.max(0, (Date.now() - playerTrack.sampledAt) / 1000))
           : 0;
       const rate =
         typeof playerTrack.rate === "number" && playerTrack.rate > 0
@@ -302,7 +315,9 @@ function App() {
         Math.min(playerTrack.duration!, playerTrack.position + age * rate),
       );
     }
-    return Math.max(0, (performance.now() - sharedAt.current) / 1000);
+    return inExtension
+      ? 0
+      : Math.max(0, (performance.now() - sharedAt.current) / 1000);
   }
   const showVideo =
     !inExtension && !!shared && (visual === "video" || !cover) && !cinema;
@@ -534,8 +549,10 @@ function App() {
     load(import.meta.env.BASE_URL + "phase-zero.wav", "Phase Zero / FLUX demo");
   async function toggle() {
     if (desktop) {
-      if (inExtension) await controlYouTube("flux:toggle-play");
-      else stopDesktop();
+      if (inExtension) {
+        if (!(await controlYouTube("flux:toggle-play")))
+          setError("The linked YouTube player is unavailable.");
+      } else stopDesktop();
       return;
     }
     if (mic) {
@@ -588,6 +605,7 @@ function App() {
       )
         return;
       if (e.code === "Space") {
+        if (inExtension && !desktop) return;
         e.preventDefault();
         void toggle();
       }
@@ -803,13 +821,14 @@ function App() {
         )}
         {inExtension && desktop && (
           <ExtensionTheater
-            active={desktop}
+            key={listeningKey}
             track={playerTrack}
             clock={playbackClock}
             caption={speech.text}
             captionState={speech.state}
             enableCaptions={() => void speech.install()}
             thumbnail={thumbnail}
+            accent={thumbnailPalette?.[2]}
             stop={stopDesktop}
             audioBlocked={audioBlocked}
             enableAudio={() =>
