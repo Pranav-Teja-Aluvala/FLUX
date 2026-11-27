@@ -39,23 +39,41 @@ function messageExtension(
     }
   });
 }
-export async function readYouTube(): Promise<Track | null> {
+export async function readYouTube(): Promise<{
+  track: Track | null;
+  sourceError?: string;
+}> {
   const reply = await messageExtension("flux:read-player", 1300);
-  if (!reply || typeof reply !== "object") return null;
+  if (!reply || typeof reply !== "object") return { track: null };
+  if (
+    inExtension &&
+    "sourceError" in reply &&
+    typeof reply.sourceError === "string"
+  )
+    return { track: null, sourceError: reply.sourceError };
   const track = reply as Track;
-  return typeof track.title === "string" && typeof track.position === "number"
-    ? track
-    : null;
+  return {
+    track:
+      typeof track.title === "string" && Number.isFinite(track.position)
+        ? track
+        : null,
+  };
 }
+export class LinkedSourceError extends Error {}
+
 export async function captureLinkedTab(): Promise<MediaStream> {
   const reply = (await messageExtension("flux:start-capture", 3200)) as {
     streamId?: string;
     error?: string;
+    sourceError?: string;
   } | null;
+  if (reply?.sourceError) throw new LinkedSourceError(reply.sourceError);
   if (!reply?.streamId)
     throw Error(
       reply?.error ||
-        "Install or update FLUX YouTube Link, then click it once on the YouTube tab.",
+        (inExtension
+          ? "Click FLUX in Chrome’s toolbar on the YouTube tab to reconnect."
+          : "Install or update FLUX YouTube Link, then click it once on the YouTube tab."),
     );
   const source = {
     mandatory: {

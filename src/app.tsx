@@ -5,6 +5,7 @@ import {
   contentCrop,
   controlYouTube,
   inExtension,
+  LinkedSourceError,
   readYouTube,
   type Crop,
 } from "./media-preview";
@@ -96,6 +97,8 @@ function App() {
   const [sources, setSources] = useState<{ id: string; name: string }[]>([]);
   const [captureId, setCaptureId] = useState("");
   const [capturePending, setCapturePending] = useState(false);
+  const [sourceError, setSourceError] = useState("");
+  const [captureEnded, setCaptureEnded] = useState(false);
   const video = useRef<HTMLVideoElement>(null);
   const preview = useRef<HTMLCanvasElement>(null);
   const cropGuide = useRef<Crop | null>(null);
@@ -266,8 +269,13 @@ function App() {
       timer: number,
       misses = 0;
     async function read() {
-      const media = await readYouTube();
+      const { track: media, sourceError } = await readYouTube();
       if (!quit) {
+        if (sourceError) {
+          stopDesktop();
+          setSourceError(sourceError);
+          return;
+        }
         misses = media ? 0 : misses + 1;
         if (media || misses >= 3) setBrowserTrack(media);
         timer = window.setTimeout(read, 550);
@@ -279,6 +287,16 @@ function App() {
       clearTimeout(timer);
     };
   }, [desktop]);
+  useEffect(() => {
+    if (!captureEnded) return;
+    let cancelled = false;
+    void readYouTube().then(({ sourceError }) => {
+      if (!cancelled && sourceError) setSourceError(sourceError);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [captureEnded]);
   const cover = desktop ? track?.cover : undefined;
   useEffect(() => {
     let stale = false;
@@ -408,10 +426,15 @@ function App() {
     }
     if (capturePending) return;
     setError("");
+    setSourceError("");
+    setCaptureEnded(false);
     setCapturePending(true);
     try {
       engine.volume(volume);
-      const stream = await engine.desktop(stopDesktop);
+      const stream = await engine.desktop(() => {
+        stopDesktop();
+        if (inExtension) setCaptureEnded(true);
+      });
       if (stream) {
         sharedAt.current = performance.now();
         setShared(stream);
@@ -425,7 +448,8 @@ function App() {
       }
     } catch (e) {
       window.fluxDesktop?.stopReading();
-      setError(message(e));
+      if (e instanceof LinkedSourceError) setSourceError(e.message);
+      else setError(message(e));
     } finally {
       setCapturePending(false);
     }
@@ -792,15 +816,21 @@ function App() {
             <div className="welcome-art" aria-hidden="true"></div>
             <div className="welcome-copy">
               <h1>
-                {capturePending ? "Connecting to YouTube…" : "Play something."}
+                {capturePending
+                  ? "Connecting to YouTube…"
+                  : captureEnded || sourceError
+                    ? "Playback disconnected."
+                    : "Play something."}
               </h1>
               <p>
-                {capturePending
-                  ? "Keep the source tab open."
-                  : "Open a video on YouTube and click FLUX in Chrome’s toolbar."}
+                {sourceError ||
+                  (capturePending
+                    ? "Keep the source tab open."
+                    : "Open a video on YouTube and click FLUX in Chrome’s toolbar.")}
               </p>
               {!capturePending &&
-                (new URLSearchParams(location.search).has("source") ? (
+                (!sourceError &&
+                new URLSearchParams(location.search).has("source") ? (
                   <button
                     className="desktop-source"
                     onClick={() => void desktopAudio()}

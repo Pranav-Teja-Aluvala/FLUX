@@ -24,9 +24,17 @@ chrome.action.onClicked.addListener(async (tab) => {
     typeof viewId === "number"
       ? await chrome.tabs.get(viewId).catch(() => null)
       : null;
-  if (view && view.url === url) {
+  if (view?.url?.startsWith(page) && (sourceId === null || view.url === url)) {
     await chrome.tabs.update(view.id, { active: true });
     await chrome.windows.update(view.windowId, { focused: true });
+    if (sourceId !== null) {
+      const captures = await chrome.tabCapture.getCapturedTabs();
+      const attached = captures.some(
+        ({ tabId, status }) =>
+          tabId === sourceId && (status === "active" || status === "pending"),
+      );
+      if (!attached) await chrome.tabs.reload(view.id);
+    }
     return;
   }
   if (view && view.url?.startsWith(page)) {
@@ -64,12 +72,12 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
     if (!Number.isInteger(id) || id <= 0)
       return { error: "Open YouTube, then click FLUX in Chrome’s toolbar." };
     const key = "source-" + id;
-    if (!(await chrome.storage.session.get(key))[key])
-      return { error: "Click FLUX again on the YouTube tab to reconnect it." };
     const videoTab = await chrome.tabs.get(id).catch(() => null);
-    if (!videoTab || !youtube(videoTab.url))
+    if (!videoTab)
+      return { sourceError: "The linked YouTube tab closed." };
+    if (!youtube(videoTab.url) || !(await chrome.storage.session.get(key))[key])
       return {
-        error: "The YouTube tab closed. Open a video and click FLUX again.",
+        sourceError: "The linked tab left YouTube or needs to be linked again.",
       };
     if (message.type === "flux:read-player") {
       const [sample] = await chrome.scripting.executeScript({
