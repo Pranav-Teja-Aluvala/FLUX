@@ -169,7 +169,7 @@ export function mountGraphics(
   points.frustumCulled = false;
   const surface = new T.Mesh(new T.PlaneGeometry(2, 2), surfaceMaterial);
   surface.frustumCulled = false;
-  scene.add(points, surface, spectrum.group);
+  scene.add(points, surface, spectrum.aperture);
   const rig = new T.Group();
   scene.add(rig);
   const lineMaterial = new T.LineBasicMaterial({
@@ -273,7 +273,7 @@ export function mountGraphics(
     points.geometry.setAttribute("seed", new T.BufferAttribute(seeds, 1));
     points.visible = size > 0;
     surface.visible = index === 3;
-    spectrum.group.visible = index === 5;
+    spectrum.aperture.visible = index === 5;
     if (index === 5) spectrum.reset();
     links.visible = index === 4;
     if (index === 2)
@@ -442,11 +442,7 @@ export function mountGraphics(
     if (index === 5) {
       const hz = (engine.context?.sampleRate ?? 48000) / 2048;
       spectrum.sample(engine.bins, hz, dt, s.bass, s.mid, s.treble);
-      spectrum.light(b.energy, camera.aspect);
-      const distance = Math.max(1, 1.12 / camera.aspect);
-      const angle = 0.11 + T.MathUtils.clamp(drag, -0.62, 0.62);
-      camera.position.set(Math.sin(angle) * 5.7 * distance, 2.85 * distance, Math.cos(angle) * 5.7 * distance);
-      camera.lookAt(0, .24, -.57);
+      spectrum.view(camera.aspect, drag);
     }
     lineMaterial.color
       .copy(colorset[0])
@@ -468,7 +464,7 @@ export function mountGraphics(
     canvas.removeEventListener("pointerdown", onDown);
     canvas.removeEventListener("pointermove", onMove);
     canvas.removeEventListener("lostpointercapture", onUp);
-    scene.remove(spectrum.group);
+    scene.remove(spectrum.aperture);
     spectrum.dispose();
     scene.traverse((obj) => {
       if (
