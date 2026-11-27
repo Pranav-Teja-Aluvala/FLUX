@@ -13,18 +13,16 @@ declare const chrome: {
 };
 const bridgeId = "elkdmnmmhjekdcabldkbngjoohcohimg";
 export function readYouTube(): Promise<Track | null> {
-  if (
-    typeof chrome === "undefined" ||
-    !chrome.runtime?.sendMessage ||
-    !bridgeId
-  )
+  if (typeof chrome === "undefined" || !chrome.runtime?.sendMessage)
     return Promise.resolve(null);
   return new Promise((resolve) => {
+    const timeout = window.setTimeout(() => resolve(null), 1300);
     try {
       chrome.runtime!.sendMessage(
         bridgeId,
         { type: "flux:read-player" },
         (reply) => {
+          clearTimeout(timeout);
           if (chrome.runtime?.lastError || !reply || typeof reply !== "object")
             return resolve(null);
           const item = reply as Track;
@@ -36,6 +34,7 @@ export function readYouTube(): Promise<Track | null> {
         },
       );
     } catch {
+      clearTimeout(timeout);
       resolve(null);
     }
   });
@@ -82,10 +81,25 @@ export function contentCrop(
     return null;
   const padx = Math.ceil(bw * 0.15),
     pady = Math.ceil(bh * 0.15);
-  return {
-    x: Math.max(0, minX - padx) / w,
-    y: Math.max(0, minY - pady) / h,
-    w: Math.min(w, bw + padx * 2) / w,
-    h: Math.min(h, bh + pady * 2) / h,
-  };
+  return boundedCrop({
+    x: (minX - padx) / w,
+    y: (minY - pady) / h,
+    w: (bw + padx * 2) / w,
+    h: (bh + pady * 2) / h,
+  });
+}
+
+export function boundedCrop(crop: Crop | null | undefined): Crop | null {
+  if (
+    !crop ||
+    ![crop.x, crop.y, crop.w, crop.h].every(Number.isFinite) ||
+    crop.w <= 0 ||
+    crop.h <= 0
+  )
+    return null;
+  const x = Math.max(0, crop.x),
+    y = Math.max(0, crop.y);
+  const w = Math.min(1, crop.x + crop.w) - x,
+    h = Math.min(1, crop.y + crop.h) - y;
+  return w >= 0.05 && h >= 0.05 ? { x, y, w, h } : null;
 }

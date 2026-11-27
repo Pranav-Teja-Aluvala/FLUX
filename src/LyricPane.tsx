@@ -37,8 +37,11 @@ export function Lyrics({
   selectors.current = { clock, lines, offset };
   const trackTitle = track?.title ?? "";
   const trackArtist = track?.artist ?? "";
-  const trackDuration = track?.duration ?? 0;
+  const trackDuration = Math.round(track?.duration ?? 0);
+  const localLrc = useRef<HTMLInputElement>(null);
+  const sourceGeneration = useRef(0);
   useEffect(() => {
+    sourceGeneration.current++;
     request.current?.abort();
     setLines([]);
     setMatches([]);
@@ -200,28 +203,37 @@ export function Lyrics({
               Find lyrics
             </button>
           </form>
-          <label className="file-label">
+          <button
+            type="button"
+            className="file-label"
+            onClick={() => localLrc.current?.click()}
+          >
             Open LRC
-            <input
-              type="file"
-              accept=".lrc,text/plain"
-              hidden
-              onChange={async (e) => {
-                const file = e.currentTarget.files?.[0];
-                e.currentTarget.value = "";
-                if (!file) return;
-                if (file.size > 200000) {
-                  setStatus("That LRC file is too large.");
-                  return;
-                }
-                try {
-                  useLyrics(await file.text(), file.name);
-                } catch {
+          </button>
+          <input
+            ref={localLrc}
+            type="file"
+            accept=".lrc,text/plain"
+            hidden
+            onChange={async (e) => {
+              const file = e.currentTarget.files?.[0];
+              e.currentTarget.value = "";
+              if (!file) return;
+              if (file.size > 200000) {
+                setStatus("That LRC file is too large.");
+                return;
+              }
+              const generation = sourceGeneration.current;
+              try {
+                const text = await file.text();
+                if (generation === sourceGeneration.current)
+                  useLyrics(text, file.name);
+              } catch {
+                if (generation === sourceGeneration.current)
                   setStatus("Could not read the LRC file.");
-                }
-              }}
-            />
-          </label>
+              }
+            }}
+          />
           <p role="status">{status}</p>
           {!!matches.length && (
             <ul className="lyric-matches">

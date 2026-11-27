@@ -1,4 +1,9 @@
-import { contentCrop, readYouTube, type Crop } from "./media-preview";
+import {
+  boundedCrop,
+  contentCrop,
+  readYouTube,
+  type Crop,
+} from "./media-preview";
 import {
   coverPalette,
   paletteFromPixels,
@@ -81,8 +86,16 @@ function App() {
   const preview = useRef<HTMLCanvasElement>(null);
   const cropGuide = useRef<Crop | null>(null);
   const [controls, setControls] = useState(false);
+  const [controlsHint, setControlsHint] = useState(false);
+  const hintTimer = useRef<number | undefined>(undefined);
+  function revealControlsHint() {
+    setControlsHint(true);
+    window.clearTimeout(hintTimer.current);
+    hintTimer.current = window.setTimeout(() => setControlsHint(false), 1700);
+  }
+  useEffect(() => () => window.clearTimeout(hintTimer.current), []);
   const [browserTrack, setBrowserTrack] = useState<Track | null>(null);
-  cropGuide.current = browserTrack?.crop ?? null;
+  cropGuide.current = boundedCrop(browserTrack?.crop);
   const sharedAt = useRef(0);
   const captureDock = useRef<HTMLDetailsElement>(null);
   const [track, setTrack] = useState<Track | null>(null);
@@ -101,6 +114,7 @@ function App() {
   const canvas = useRef<HTMLCanvasElement>(null),
     spect = useRef<HTMLCanvasElement>(null),
     file = useRef<HTMLInputElement>(null);
+  const recorderStarting = useRef(false);
   const recorder = useRef<MediaRecorder | null>(null),
     state = useRef({ scene, settings, reduced, albumColors });
   const artwork = followCover
@@ -119,7 +133,8 @@ function App() {
     const bridge = window.fluxDesktop;
     let stopped = false,
       timer: number,
-      initializedPreview = false;
+      initializedPreview = false,
+      lastBridgeError = "";
     async function poll() {
       try {
         const result = await bridge.nowPlaying();
@@ -137,7 +152,10 @@ function App() {
             ? prior
             : result.track,
         );
-        if (result.error && !result.track) setError(result.error);
+        if (result.error && !result.track && result.error !== lastBridgeError) {
+          lastBridgeError = result.error;
+          setError(result.error);
+        }
       } catch (e) {
         if (!stopped) setError(message(e));
         return;
@@ -155,11 +173,13 @@ function App() {
   useEffect(() => {
     if (!desktop || window.fluxDesktop) return;
     let quit = false,
-      timer: number;
+      timer: number,
+      misses = 0;
     async function read() {
       const media = await readYouTube();
       if (!quit) {
-        setBrowserTrack(media);
+        misses = media ? 0 : misses + 1;
+        if (media || misses >= 3) setBrowserTrack(media);
         timer = window.setTimeout(read, 550);
       }
     }
@@ -464,8 +484,8 @@ function App() {
   }
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        setControls((v) => !v);
+      if (e.key === "Escape" && !e.repeat) {
+        setControls(true);
         setCinema(false);
         return;
       }
@@ -517,13 +537,13 @@ function App() {
     }
   }
   async function record() {
+    if (recorderStarting.current) return;
     if (recorder.current) {
-      recorder.current.stop();
-      recorder.current = null;
-      setRecording(false);
+      if (recorder.current.state !== "inactive") recorder.current.stop();
       return;
     }
     let video: MediaStream | undefined;
+    recorderStarting.current = true;
     try {
       await engine.activate();
       video = canvas.current!.captureStream(30);
@@ -538,14 +558,20 @@ function App() {
       };
       recordingEngine.onstop = () => {
         video?.getTracks().forEach((t) => t.stop());
+        if (recorder.current !== recordingEngine) return;
         recorder.current = null;
         setRecording(false);
-        if (chunks.length)
-          save(
-            new Blob(chunks, { type: recordingEngine.mimeType }),
-            "flux." +
-              (recordingEngine.mimeType.includes("mp4") ? "mp4" : "webm"),
+        const clip = new Blob(chunks, { type: recordingEngine.mimeType });
+        if (clip.size <= 1) {
+          setError(
+            "The browser did not encode a recording. Let it run for a few seconds and try again.",
           );
+          return;
+        }
+        save(
+          clip,
+          "flux." + (recordingEngine.mimeType.includes("mp4") ? "mp4" : "webm"),
+        );
       };
       recordingEngine.onerror = () => {
         recorder.current = null;
@@ -559,6 +585,8 @@ function App() {
     } catch (e) {
       video?.getTracks().forEach((t) => t.stop());
       setError(message(e));
+    } finally {
+      recorderStarting.current = false;
     }
   }
   const listening = (desktop || mic || playing) && !controls;
@@ -610,10 +638,26 @@ function App() {
         <span className="subtitle">Audio visualizer</span>
         <div className="top-actions">
           <button
-            onClick={() => setCinema((v) => !v)}
-            title="Cinematic mode (F)"
+            onClick={() => {
+              if ((desktop || mic || playing) && !cinema) {
+                setControls(false);
+                setPanel(false);
+              } else setCinema((v) => !v);
+            }}
+            title={
+              desktop || mic || playing
+                ? "Hide controls and return to listening"
+                : "Cinematic mode (F)"
+            }
           >
-            ⛶ <span>{cinema ? "Exit cinema" : "Cinema"}</span>
+            ⛶{" "}
+            <span>
+              {cinema
+                ? "Exit cinema"
+                : desktop || mic || playing
+                  ? "Listening view"
+                  : "Cinema"}
+            </span>
           </button>
           <button aria-expanded={panel} onClick={() => setPanel((v) => !v)}>
             ≡ <span>Studio</span>
@@ -631,11 +675,21 @@ function App() {
         <section
           className="stage"
           aria-label="Audio-reactive environment"
-          onDoubleClick={() => setControls((v) => !v)}
+          onDoubleClick={() => setControls(true)}
+          onPointerMove={(event) => {
+            if (listening && event.pointerType === "mouse")
+              revealControlsHint();
+          }}
+          onPointerDown={(event) => {
+            if (listening && event.pointerType !== "mouse")
+              revealControlsHint();
+          }}
         >
           {listening && (
             <button
-              className="restore-controls"
+              className={
+                controlsHint ? "restore-controls revealed" : "restore-controls"
+              }
               onClick={() => setControls(true)}
             >
               Show controls
@@ -740,7 +794,10 @@ function App() {
                 ) : null}
               </figure>
               <div className="media-caption">
-                <strong>{playerTrack?.title || "Shared video"}</strong>
+                {playerTrack?.title && <strong>{playerTrack.title}</strong>}
+                {!listening && !playerTrack?.title && (
+                  <strong>Shared video</strong>
+                )}
                 {playerTrack?.artist && <span>{playerTrack.artist}</span>}
               </div>
               {shared && cover && (

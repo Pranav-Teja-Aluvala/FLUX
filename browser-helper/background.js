@@ -73,6 +73,7 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(item),
+        signal: AbortSignal.timeout(1600),
       }).catch(() => {});
     return true;
   })().then(reply, () => reply(true));
@@ -96,22 +97,31 @@ function readPlayer() {
   );
   const width = video.videoWidth * ratio,
     height = video.videoHeight * ratio;
-  const x = clamp(r.left + (r.width - width) / 2, 0, innerWidth),
-    y = clamp(r.top + (r.height - height) / 2, 0, innerHeight);
+  const left = r.left + (r.width - width) / 2,
+    top = r.top + (r.height - height) / 2;
+  const x = clamp(left, 0, innerWidth),
+    y = clamp(top, 0, innerHeight);
+  const visibleWidth = clamp(left + width, 0, innerWidth) - x,
+    visibleHeight = clamp(top + height, 0, innerHeight) - y;
   const crop =
-    width > 0 && height > 0
+    visibleWidth > 0 && visibleHeight > 0
       ? {
           x: x / innerWidth,
           y: y / innerHeight,
-          w: Math.min(width, innerWidth - x) / innerWidth,
-          h: Math.min(height, innerHeight - y) / innerHeight,
+          w: visibleWidth / innerWidth,
+          h: visibleHeight / innerHeight,
         }
       : null;
   const chapters = [];
-  const markerGroups =
-    player.getPlayerResponse?.()?.playerOverlays?.playerOverlayRenderer
-      ?.decoratedPlayerBarRenderer?.decoratedPlayerBarRenderer?.playerBar
-      ?.multiMarkersPlayerBarRenderer?.markersMap;
+  let markerGroups;
+  try {
+    markerGroups =
+      player.getPlayerResponse?.()?.playerOverlays?.playerOverlayRenderer
+        ?.decoratedPlayerBarRenderer?.decoratedPlayerBarRenderer?.playerBar
+        ?.multiMarkersPlayerBarRenderer?.markersMap;
+  } catch {
+    /* The public DOM remains available when the player internals change. */
+  }
   for (const group of markerGroups ?? [])
     for (const entry of group.value?.chapters ?? []) {
       const marker = entry.chapterRenderer;
@@ -122,23 +132,22 @@ function readPlayer() {
       const start = Number(marker?.timeRangeStartMillis) / 1000;
       if (title && Number.isFinite(start)) chapters.push({ start, title });
     }
-  for (const link of document.querySelectorAll(
-    "#description a, ytd-macro-markers-list-item-renderer a",
-  )) {
-    const stamp = link.textContent.trim();
-    if (!/^\d{1,2}(?::\d{2}){1,2}$/.test(stamp)) continue;
-    const start = stamp.split(":").reduce((sum, n) => sum * 60 + Number(n), 0);
-    const line =
-      link.parentElement.innerText
-        .split("\n")
-        .find((line) => line.includes(stamp)) || "";
-    const title = line
-      .replace(stamp, "")
-      .replace(/^\s*[-–—:|]+\s*/, "")
-      .trim();
-    if (title.length > 2 && title.length < 160 && start < video.duration)
-      chapters.push({ start, title });
-  }
+  // Description timestamps often sit in inline spans. Match complete lines.
+  const description = document.querySelector(
+    "#description-inline-expander #description, #description-inline-expander, #description",
+  );
+  if (!chapters.length && description)
+    for (const line of description.innerText.split("\n")) {
+      const match = line
+        .trim()
+        .match(/^(\d{1,2}(?::\d{2}){1,2})[\s–—:|.-]+(.{3,159})$/);
+      if (!match) continue;
+      const start = match[1]
+        .split(":")
+        .reduce((sum, n) => sum * 60 + Number(n), 0);
+      if (start < video.duration)
+        chapters.push({ start, title: match[2].trim() });
+    }
   chapters.sort((a, b) => a.start - b.start);
   const chapter = chapters.findLast((item) => item.start <= video.currentTime);
   const next = chapter && chapters.find((item) => item.start > chapter.start);
@@ -165,9 +174,9 @@ function readPlayer() {
     (chapter || activeChapter
       ? ""
       : navigator.mediaSession.metadata?.artist || channel);
-  const cueText = [...video.textTracks]
+  const cueText = Array.from(video.textTracks ?? [])
     .flatMap((track) =>
-      [...(track.activeCues ?? [])].map((cue) => cue.text ?? ""),
+      Array.from(track.activeCues ?? []).map((cue) => cue.text ?? ""),
     )
     .join(" ")
     .trim();

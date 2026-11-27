@@ -1058,3 +1058,66 @@ input[type="checkbox"] {
     max-height: 30svh;
   }
 }
+
+/* Keep the content readable when the main controls are hidden. */
+.listening .media-caption {
+  display: grid;
+  gap: 4px;
+  margin-top: 16px;
+  overflow-wrap: anywhere;
+}
+.listening .media-caption:empty {
+  display: none;
+}
+.listening .media-caption strong {
+  font-weight: 550;
+  color: #e3e1d7;
+  font-size: clamp(14px, 1.3vw, 20px);
+}
+.listening .media-caption span {
+  font-size: 12px;
+}
+.listening .media-frame {
+  align-self: center;
+}
+.listening .lyrics-pane {
+  padding-block: clamp(20px, 7vh, 72px);
+}
+.listening .lyric-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #4c5248 transparent;
+}
+.listening .lyric-scroll li[aria-current="true"] button {
+  color: #fcfaf0;
+  text-shadow: 0 0 14px #e8ebd324;
+}
+.restore-controls {
+  pointer-events: none;
+  transition: opacity 0.18s linear;
+}
+.restore-controls.revealed,
+.restore-controls:focus-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+.lyrics-setup .file-label {
+  padding: 7px 9px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .restore-controls {
+    transition: none;
+  }
+}
+@media (max-width: 455px) {
+  .listening .lyrics-pane,
+  .listening .media-pane {
+    padding: 14px 18px;
+  }
+  .listening .media-caption {
+    margin-top: 9px;
+  }
+}
+
+.listening .studio {
+  display: none;
+}

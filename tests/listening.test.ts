@@ -23,3 +23,27 @@ test("video palette changes when the dominant pixels change", () => {
   assert.equal(red[0], "#dc281e");
   assert.equal(blue[0], "#2328dc");
 });
+
+import { boundedCrop, contentCrop } from "../src/media-preview";
+test("crop trims clipped edges and rejects bogus regions", () => {
+  assert.deepEqual(boundedCrop({ x: -0.25, y: 0.25, w: 0.5, h: 1 }), {
+    x: 0,
+    y: 0.25,
+    w: 0.25,
+    h: 0.75,
+  });
+  assert.equal(boundedCrop({ x: 1.2, y: 0, w: 1, h: 1 }), null);
+  assert.equal(boundedCrop({ x: NaN, y: 0, w: 1, h: 1 }), null);
+  const data = new Uint8ClampedArray(100 * 100 * 4);
+  for (let y = 33; y < 69; y++)
+    for (let x = 36; x < 61; x++)
+      data.set([230, 30, 130, 255], (y * 100 + x) * 4);
+  const crop = contentCrop(data, 100, 100)!;
+  assert.ok(
+    crop &&
+      crop.x < 0.36 &&
+      crop.y < 0.33 &&
+      crop.x + crop.w > 0.6 &&
+      crop.w < 0.5,
+  );
+});

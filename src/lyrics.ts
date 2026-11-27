@@ -49,7 +49,9 @@ export async function findLyrics(
 ): Promise<LyricsMatch[]> {
   const q = new URLSearchParams({ track_name: title });
   if (artist) q.set("artist_name", artist);
-  const r = await fetch("https://lrclib.net/api/search?" + q, { signal });
+  const r = await fetch("https://lrclib.net/api/search?" + q, {
+    signal: AbortSignal.any([signal, AbortSignal.timeout(9000)]),
+  });
   if (r.status === 429)
     throw Error(
       "Lyrics search is rate limited. Try again shortly or open an LRC file.",
