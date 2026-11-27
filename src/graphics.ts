@@ -1,3 +1,4 @@
+import type { CoverPalette } from "./desktop";
 import * as T from "three";
 import type { AudioEngine } from "./audio";
 import type { Settings } from "./settings";
@@ -7,6 +8,15 @@ const palettes = [
   ["#e83266", "#ffc258", "#602a90"],
   ["#748a9a", "#f7f4de", "#b7cae5"],
 ];
+const scenePalettes = [
+  palettes[0],
+  ["#284ba5", "#ff8dbf", "#89ecff"],
+  ["#18b9ad", "#ff914d", "#a6fff2"],
+  ["#31459a", "#ff839d", "#64ecd6"],
+  ["#4888ac", "#edf0de", "#acd7ed"],
+  ["#144de7", "#fa6223", "#ffe38d"],
+];
+const sceneColors = scenePalettes.map((p) => p.map((c) => new T.Color(c)));
 const colors = palettes.map((p) => p.map((c) => new T.Color(c)));
 const hash = (x: number) => {
   const n = Math.sin(x * 127.1 + 19.7) * 43758.5453;
@@ -25,10 +35,11 @@ void main(){
  p += normalize(p)*pow(seed,20.)*(.1+high*2.4);
  tone=clamp((position.y+1.2)/2.4+fold*.15,0.,1.);
  }else if(kind==1){
- float z=p.z+t*1.15;
- p.y=(sin(p.x*1.3+sin(z*.55))+sin(z*1.7+p.x*.5)*.45)*(.45+bass*1.2)*dist;
- p.y+=sin(z*3.+p.x*2.)*mid*.5*complexity;
- tone=clamp(.48+p.y*.47,0.,1.);
+ float z=p.z+t*1.35;
+ float ridges=pow(.5+.5*sin(p.x*.67+sin(z*.45)*1.3+sin(z*.17)*2.),2.8);
+ p.y=(ridges*(1.6+bass*1.65)+sin(z*.55+p.x*.28)*.53)*dist-1.05;
+ p.y+=sin(z*2.3+p.x*2.)*mid*.44*complexity;
+ tone=clamp(.35+p.y*.33,0.,1.);
  }else{
  p *= 1.+bass*.3;
  p.x+=sin(p.z*1.8+t+seed)*mid*.9*dist;
@@ -38,6 +49,7 @@ void main(){
  vec4 mv=modelViewMatrix*vec4(p,1.);
  depth=-mv.z;
  gl_PointSize=clamp(scale*(1.1+seed*.8+high*.9)/max(.25,depth*.29),.7,9.);
+ if(kind==4)gl_PointSize *= 1.2+pow(seed,9.)*3.;
  gl_Position=projectionMatrix*mv;
 }`;
 const fragment = `
@@ -50,6 +62,8 @@ void main(){
  if(d>1.)discard;
  vec3 col=mix(mix(a,c,min(tone*2.,1.)),b,max(tone*2.-1.,0.));
  float alpha=exp(-d*d*(3.2-bloom))*(1.-smoothstep(.60,1.,d))/(1.+max(0.,depth-4.)*.09);
+ if(kind==1)alpha*= .18+.82*exp(-max(0.,depth-4.)*.045);
+ if(kind==4)col=mix(col,vec3(.95),pow(1.-d,5.));
  gl_FragColor=vec4(col*(1.1+bloom+high*.5),alpha);
  #include <colorspace_fragment>
 }`;
@@ -60,24 +74,38 @@ uniform vec2 resolution;
 varying vec2 uv0;
 void main(){
  vec2 p=(uv0-.5)*vec2(resolution.x/resolution.y,1.)*2.;
+ float framing=min(1.,resolution.x/resolution.y)*.87+.14;
+ p/=framing;
  vec2 q=p;
- for(int i=1;i<=5;i++){
+ for(int i=1;i<=4;i++){
   float f=float(i);
-  q+=vec2(sin(q.y*f*2.3+t*.7),cos(q.x*f*2.-t*.5))*(.24+mid*.16)*dist/f;
+  q+=vec2(sin(q.y*f*3.+t*.51+q.x*f*.75),cos(q.x*f*2.7-t*.36))*(.26+mid*.19)*dist/f;
  }
- float h=sin(q.x*(3.+complexity)+q.y*5.+t*.6+bass*3.);
- float k=cos(q.y*8.-q.x*3.+h*2.);
- vec3 metal=mix(a,b,.5+.5*h);
- metal=mix(metal,c,pow(.5+.5*k,3.));
- float shine=pow(max(0.,cos(k*4.+h)),16.);
- float aperture=exp(-dot(p,p)*.33);
- gl_FragColor=vec4((metal*(.14+.6*pow(abs(h),2.))+shine*(.18+bloom*.34+high*.3))*aperture,1.);
+ float ring=length(p*vec2(.87,1.13))+sin(atan(p.y,p.x)*3.+t*.55)*.08;
+ float edge=.69+bass*.10+sin(q.y*8.+t)*.06*dist;
+ float body=1.-smoothstep(edge-.03,edge+.035,ring);
+ float fold=sin(q.x*(4.+complexity)+q.y*7.+t*.45+bass*2.);
+ float fold2=cos(q.y*9.-q.x*4.+fold*2.);
+ vec3 metal=mix(a,b,.5+.5*fold);
+ metal=mix(metal,c,pow(.5+.5*fold2,4.));
+ float shade=.07+.64*pow(.5+.5*fold,2.);
+ float glint=pow(max(0.,cos(fold2*4.+fold)),24.);
+ float edgeLight=exp(-abs(ring-edge)*43.);
+ vec3 col=(metal*shade + glint*(.12+bloom*.21+high*.3))*body;
+ col+=mix(a,c,.5)*edgeLight*.24;
+ col+=a*exp(-dot(p,p)*2.6)*.035;
+ gl_FragColor=vec4(col,1.);
  #include <colorspace_fragment>
 }`;
 export function mountGraphics(
   canvas: HTMLCanvasElement,
   engine: AudioEngine,
-  read: () => { scene: number; settings: Settings; reduced: boolean },
+  read: () => {
+    scene: number;
+    settings: Settings;
+    reduced: boolean;
+    albumColors?: CoverPalette;
+  },
   stats: (fps: number) => void,
 ) {
   const renderer = new T.WebGLRenderer({
@@ -113,9 +141,9 @@ export function mountGraphics(
     complexity: { value: 1 },
     bloom: { value: 1 },
     kind: { value: 0 },
-    a: { value: colors[0][0] },
-    b: { value: colors[0][1] },
-    c: { value: colors[0][2] },
+    a: { value: colors[0][0].clone() },
+    b: { value: colors[0][1].clone() },
+    c: { value: colors[0][2].clone() },
     resolution: { value: new T.Vector2() },
   };
   const pointsMaterial = new T.ShaderMaterial({
@@ -197,7 +225,7 @@ export function mountGraphics(
         obj.geometry.dispose();
     });
     rig.clear();
-    size = index === 0 ? 61000 : index === 1 ? 19440 : index === 4 ? 210 : 0;
+    size = index === 0 ? 61000 : index === 1 ? 44800 : index === 4 ? 210 : 0;
     const coords = new Float32Array(size * 3),
       seeds = new Float32Array(size);
     for (let i = 0; i < size; i++) {
@@ -214,18 +242,26 @@ export function mountGraphics(
         );
       } else if (index === 1) {
         coords.set(
-          [(hash(i + 19) - 0.5) * 18, 0, (hash(i + 455) - 0.5) * 28],
-          j,
-        );
-      } else
-        coords.set(
           [
-            (hash(i + 600) - 0.5) * 8,
-            (hash(i + 241) - 0.5) * 5,
-            (hash(i + 99) - 0.5) * 6,
+            (((i * 133) % 160) / 159 - 0.5) * 19,
+            0,
+            (((i * 157) % 281) / 280 - 0.5) * 31,
           ],
           j,
         );
+      } else {
+        const r = Math.pow(hash(i + 11), 0.76) * 4.1;
+        const spin =
+          ((i % 3) * Math.PI * 2) / 3 + r * 0.88 + (hash(i + 241) - 0.5) * 0.85;
+        coords.set(
+          [
+            Math.cos(spin) * r,
+            Math.sin(spin) * r * 0.81,
+            (hash(i + 99) - 0.5) * (1.65 - r * 0.19),
+          ],
+          j,
+        );
+      }
     }
     if (index === 4) starPos.set(coords);
     points.geometry = new T.BufferGeometry();
@@ -240,8 +276,12 @@ export function mountGraphics(
           vertices = [];
         for (let j = 0; j < n; j++) {
           const angle = (j / n) * Math.PI * 2,
-            r = 2.8 + 0.39 * Math.cos(angle * 6);
-          vertices.push(Math.cos(angle) * r, Math.sin(angle) * r, 0);
+            r = 2.55 + 0.38 * Math.cos(angle * 6) + 0.17 * Math.cos(angle * 12);
+          vertices.push(
+            Math.cos(angle) * r,
+            Math.sin(angle) * r,
+            Math.sin(angle * 6) * 0.48,
+          );
         }
         const geometry = new T.BufferGeometry().setAttribute(
           "position",
@@ -250,7 +290,7 @@ export function mountGraphics(
         rig.add(new T.LineLoop(geometry, lineMaterial));
       }
     if (index === 5) {
-      const geometry = new T.BoxGeometry(0.054, 0.9, 0.075),
+      const geometry = new T.BoxGeometry(0.067, 0.9, 0.16),
         instances = new T.InstancedMesh(geometry, paletteMaterial, 288);
       instances.frustumCulled = false;
       rig.add(instances);
@@ -259,6 +299,8 @@ export function mountGraphics(
   }
   const dummy = new T.Object3D(),
     tint = new T.Color();
+  let lastAlbum: CoverPalette | undefined;
+  const album = new Array(3).fill(null).map(() => new T.Color());
   function loop(now: number) {
     frame = requestAnimationFrame(loop);
     const dt = Math.min(0.05, (now - last) / 1000);
@@ -275,7 +317,7 @@ export function mountGraphics(
         1,
       );
     }
-    const { scene: index, settings: s, reduced } = read();
+    const { scene: index, settings: s, reduced, albumColors } = read();
     if (current !== index) build(index);
     const W = canvas.clientWidth,
       H = canvas.clientHeight;
@@ -306,8 +348,19 @@ export function mountGraphics(
     u.dist.value = s.distortion;
     u.complexity.value = s.complexity;
     u.bloom.value = s.bloom;
-    const colorset = colors[s.palette];
-    [u.a.value, u.b.value, u.c.value] = colorset;
+    if (albumColors !== lastAlbum) {
+      lastAlbum = albumColors;
+      albumColors?.forEach((hex, i) => album[i].set(hex));
+    }
+    const target = albumColors
+      ? album
+      : s.palette === 0
+        ? sceneColors[index]
+        : colors[s.palette];
+    const colorset = [u.a.value, u.b.value, u.c.value];
+    colorset.forEach((color, i) =>
+      color.lerp(target[i], 1 - Math.exp(-dt * 9)),
+    );
     const drift = reduced ? 0 : s.camera;
     camera.position.set(0, 0, 4.55);
     camera.lookAt(0, 0, 0);
@@ -320,15 +373,15 @@ export function mountGraphics(
     }
     if (index === 1) {
       camera.position.set(Math.sin(t * 0.3) * drift + drag * 0.3, 2.4, 5.4);
-      camera.lookAt(0, -0.45, -5.8);
+      camera.lookAt(0, -0.13, -6.4);
     }
     if (index === 4) {
-      camera.position.z = 7.8;
+      camera.position.z = Math.max(8.9, 8.1 / camera.aspect);
       points.rotation.y = t * 0.18 * drift + drag;
       links.rotation.copy(points.rotation);
       let segments = 0;
       const count = Math.floor(210 * s.density),
-        reach = 0.7 + u.mid.value * 0.49 + s.complexity * 0.25;
+        reach = 0.52 + u.mid.value * 0.44 + s.complexity * 0.2;
       for (let i = 0; i < count; i++)
         for (let j = i + 1; j < count && segments < 4200; j++) {
           const a = i * 3,
@@ -376,7 +429,8 @@ export function mountGraphics(
           z = ((i * 1.2 + travel) % span) - span + 0.15;
         ring.visible = z < -0.25 && i < 36 * s.density;
         ring.position.z = z;
-        ring.rotation.z = i * 0.23 + t * 0.19 + drag;
+        ring.rotation.z = i * 0.19 + t * 0.24 + drag;
+        ring.position.x = Math.sin(z * 0.22 + t * 0.5) * 0.5 * s.camera;
         ring.scale.setScalar(
           1 + Math.sin(i * 0.6 + t) * 0.19 * s.distortion + u.mid.value * 0.16,
         );
@@ -392,11 +446,13 @@ export function mountGraphics(
       );
       camera.position.z = Math.max(5.4, 4.5 / camera.aspect);
       for (let i = 0; i < bars.count; i++) {
-        const j = i / bars.count,
-          angle = j * Math.PI * 2,
+        const lane = i % 3;
+        const j = Math.floor(i / 3) / Math.ceil(bars.count / 3),
+          angle = j * Math.PI * 2 + lane * 0.035,
           amp = engine.bins[Math.floor(2 + Math.pow(j, 2) * 240)] / 255;
         const radial =
-          0.78 +
+          0.53 +
+          lane * 0.42 +
           (s.style === 1
             ? Math.sin(angle * 8) * 0.23
             : s.style === 2
@@ -404,12 +460,13 @@ export function mountGraphics(
               : 0);
         const height =
           0.25 +
-          hash(i) * 0.4 +
-          amp * (0.7 + u.bass.value + u.high.value * 0.3);
+          hash(i) * 0.17 +
+          (lane === 2 ? 0.31 : 0.09) +
+          amp * (0.58 + u.bass.value + u.high.value * 0.3);
         dummy.position.set(
           Math.cos(angle) * (radial + height * 0.33),
           Math.sin(angle) * (radial + height * 0.33),
-          Math.sin(angle * 5 + t) * (0.09 + u.mid.value * 0.18),
+          Math.sin(angle * 5 + t) * (0.09 + u.mid.value * 0.18) + lane * 0.16,
         );
         dummy.rotation.set(0, 0, angle - Math.PI / 2);
         dummy.scale.set(0.5 + s.complexity * 0.42, height, 0.6 + amp);
@@ -417,7 +474,12 @@ export function mountGraphics(
         bars.setMatrixAt(i, dummy.matrix);
         tint
           .copy(colorset[0])
-          .lerp(colorset[1], 0.5 + 0.5 * Math.sin(angle * 3 + u.high.value * 3))
+          .lerp(
+            colorset[lane === 2 ? 1 : 2],
+            0.35 +
+              0.65 *
+                Math.pow(0.5 + 0.5 * Math.sin(angle * 3 + u.high.value * 3), 2),
+          )
           .multiplyScalar(0.73 + s.bloom * 0.28 + amp);
         bars.setColorAt(i, tint);
       }

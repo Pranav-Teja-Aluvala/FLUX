@@ -1,3 +1,4 @@
+import { coverPalette, type Track, type CoverPalette } from "./desktop";
 import React, { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { AudioEngine } from "./audio";
@@ -62,6 +63,10 @@ function App() {
     [graphicsError, setGraphicsError] = useState(""),
     [fps, setFps] = useState(0),
     [mic, setMic] = useState(false);
+  const [desktop, setDesktop] = useState(false);
+  const [track, setTrack] = useState<Track | null>(null);
+  const [albumColors, setAlbumColors] = useState<CoverPalette>();
+  const [followCover, setFollowCover] = useState(true);
   const [source, setSource] = useState(""),
     [playing, setPlaying] = useState(false),
     [position, setPosition] = useState(0),
@@ -75,8 +80,80 @@ function App() {
     spect = useRef<HTMLCanvasElement>(null),
     file = useRef<HTMLInputElement>(null);
   const recorder = useRef<MediaRecorder | null>(null),
-    state = useRef({ scene, settings, reduced });
-  state.current = { scene, settings, reduced };
+    state = useRef({ scene, settings, reduced, albumColors });
+  const artwork = followCover ? albumColors : undefined;
+  state.current = { scene, settings, reduced, albumColors: artwork };
+
+  useEffect(() => {
+    if (!desktop || !window.fluxDesktop) return;
+    const bridge = window.fluxDesktop;
+    let stopped = false,
+      timer: number;
+    async function poll() {
+      try {
+        const result = await bridge.nowPlaying();
+        if (stopped) return;
+        setTrack((prior) =>
+          JSON.stringify(prior) === JSON.stringify(result.track)
+            ? prior
+            : result.track,
+        );
+        if (result.error) {
+          setError(result.error);
+          return;
+        }
+      } catch (e) {
+        if (!stopped) setError(message(e));
+        return;
+      }
+      timer = window.setTimeout(poll, 1600);
+    }
+    void poll();
+    return () => {
+      stopped = true;
+      clearTimeout(timer);
+      bridge.stopReading();
+    };
+  }, [desktop]);
+
+  const cover = desktop ? track?.cover : undefined;
+  useEffect(() => {
+    let stale = false;
+    setAlbumColors(undefined);
+    if (cover)
+      void coverPalette(cover).then(
+        (colors) => {
+          if (!stale) setAlbumColors(colors);
+        },
+        () => {},
+      );
+    return () => {
+      stale = true;
+    };
+  }, [cover]);
+
+  function stopDesktop() {
+    engine.stopMic();
+    setDesktop(false);
+    setTrack(null);
+    setSource("");
+  }
+  async function desktopAudio() {
+    if (desktop) {
+      stopDesktop();
+      return;
+    }
+    setError("");
+    try {
+      if (await engine.desktop(stopDesktop)) {
+        setMic(false);
+        setDesktop(true);
+        setSource("Desktop audio");
+      }
+    } catch (e) {
+      setError(message(e));
+    }
+  }
 
   useEffect(() => {
     let stopped = false,
@@ -169,6 +246,8 @@ function App() {
   async function load(value: File | string, label: string) {
     setError("");
     setMic(false);
+    setDesktop(false);
+    setTrack(null);
     setSource(label);
     try {
       engine.volume(volume);
@@ -180,6 +259,10 @@ function App() {
   const demo = () =>
     load(import.meta.env.BASE_URL + "phase-zero.wav", "Phase Zero / FLUX demo");
   async function toggle() {
+    if (desktop) {
+      stopDesktop();
+      return;
+    }
     if (mic) {
       engine.stopMic();
       setMic(false);
@@ -204,6 +287,8 @@ function App() {
     setError("");
     try {
       if (await engine.microphone()) {
+        setDesktop(false);
+        setTrack(null);
         setMic(true);
         setSource("Live microphone");
       }
@@ -309,8 +394,10 @@ function App() {
   const current = scenes[scene];
   return (
     <div
-      className={["app", cinema && "cinema", reduced && "reduced"].filter(Boolean).join(" ")}
-      style={{ "--accent": current[1] } as React.CSSProperties}
+      className={["app", cinema && "cinema", reduced && "reduced"]
+        .filter(Boolean)
+        .join(" ")}
+      style={{ "--accent": artwork?.[2] ?? current[1] } as React.CSSProperties}
       onDragOver={(e) => {
         e.preventDefault();
         setDrag(true);
@@ -326,13 +413,25 @@ function App() {
       }}
     >
       <header>
-        <a href="./" className="wordmark" aria-label="FLUX home">
+        <a
+          href="./"
+          className="wordmark"
+          aria-label="FLUX home"
+          onClick={(e) => {
+            if (window.fluxDesktop) {
+              e.preventDefault();
+              setScene(0);
+              setCinema(false);
+              setPanel(false);
+            }
+          }}
+        >
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path d="M2 13h4l3-8 5 15 3-9h5" />
           </svg>
           FLUX
         </a>
-        <span className="subtitle">MUSIC YOU CAN SEE</span>
+        <span className="subtitle">Audio visual instrument</span>
         <div className="top-actions">
           <button
             onClick={() => setCinema((v) => !v)}
@@ -350,16 +449,12 @@ function App() {
           <canvas ref={canvas} aria-label={current[0] + " visualization"} />
           <div className="stage-label" key={scene}>
             <div className="eyebrow">
-              <i /> {mic || playing ? "Audio active" : "Standby"}
+              <i /> {desktop || mic || playing ? "Live" : "Standby"}
             </div>
             <h1>{current[0]}</h1>
             <p>{current[2]}</p>
           </div>
-          <div className="stage-scale">
-            <span>+</span>
-            <span>+</span>
-            <span>+</span>
-          </div>
+
           <div className="view-tools">
             <button
               disabled={!!graphicsError}
@@ -387,10 +482,7 @@ function App() {
             <span>
               {scene === 3 ? "PROCEDURAL SURFACE" : "DRAG TO EXPLORE"}
             </span>
-            <span>
-              {fps ? fps + " FPS" : "WebGL"} ·{" "}
-              {String(scene + 1).padStart(2, "0")}/06
-            </span>
+            <span>{fps ? fps + " FPS" : "WebGL"}</span>
           </div>
           {graphicsError && (
             <p role="alert" className="graphics-error">
@@ -406,7 +498,7 @@ function App() {
               style={{ "--scene-color": accent } as React.CSSProperties}
               onClick={() => setScene(i)}
             >
-              <span>{String(i + 1).padStart(2, "0")}</span>
+              <i aria-hidden="true" />
               {label}
             </button>
           ))}
@@ -416,28 +508,55 @@ function App() {
         <div className="track-controls">
           <button
             className="play"
-            aria-label={mic ? "Stop microphone" : playing ? "Pause" : "Play"}
+            aria-label={
+              desktop
+                ? "Stop desktop capture"
+                : mic
+                  ? "Stop microphone"
+                  : playing
+                    ? "Pause"
+                    : "Play"
+            }
             onClick={() => void toggle()}
           >
-            {mic || playing ? "Ⅱ" : "▶"}
+            {desktop || mic ? "■" : playing ? "Ⅱ" : "▶"}
           </button>
+          {cover && <img className="album-cover" src={cover} alt="" />}
           <div className="track">
-            <span>{source || "No audio selected"}</span>
             <span>
-              {mic
-                ? "MIC INPUT"
-                : playing
-                  ? "PLAYING"
-                  : source
-                    ? "PAUSED"
-                    : "LOCAL AUDIO"}
+              {desktop && track?.title
+                ? track.title
+                : source || "No audio selected"}
+            </span>
+            <span>
+              {desktop
+                ? track?.artist ||
+                  (window.fluxDesktop
+                    ? "Waiting for a Windows media session"
+                    : "Browser capture")
+                : mic
+                  ? "MIC INPUT"
+                  : playing
+                    ? "PLAYING"
+                    : source
+                      ? "PAUSED"
+                      : "LOCAL AUDIO"}
             </span>
           </div>
-          <button onClick={() => file.current?.click()}>↑ Open audio</button>
+        </div>
+        <div className="input-actions">
+          <button onClick={() => file.current?.click()}>Open audio</button>
           <button aria-pressed={mic} onClick={() => void microphone()}>
             {mic ? "Stop mic" : "Mic"}
           </button>
           <button onClick={() => void demo()}>Play demo</button>
+          <button
+            className="desktop-source"
+            aria-pressed={desktop}
+            onClick={() => void desktopAudio()}
+          >
+            {desktop ? "Stop desktop" : "Desktop audio"}
+          </button>
         </div>
         <div className="seek">
           <span>{fmt(position)}</span>
@@ -447,7 +566,7 @@ function App() {
             min="0"
             max={duration || 1}
             step=".01"
-            disabled={!duration || mic}
+            disabled={!duration || mic || desktop}
             value={Math.min(duration, position)}
             onChange={(e) => {
               engine.media.currentTime = +e.target.value;
@@ -499,6 +618,24 @@ function App() {
               ×
             </button>
           </div>
+          <label className="cover-setting">
+            <input
+              type="checkbox"
+              checked={followCover}
+              onChange={(e) => setFollowCover(e.target.checked)}
+            />{" "}
+            Follow album artwork
+          </label>
+          {!window.fluxDesktop && (
+            <a
+              className="desktop-info"
+              href="https://github.com/Pranav-Teja-Aluvala/FLUX#windows-desktop-mode"
+              target="_blank"
+              rel="noreferrer"
+            >
+              Windows song and cover setup ↗
+            </a>
+          )}
           <div className="panel-tools">
             <button onClick={() => setSettings(defaults)}>Reset</button>
             <label>

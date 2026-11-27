@@ -35,3 +35,16 @@ To regenerate the original demo, run the Python standard-library script from the
 ~~~sh
 python generate-demo.py
 ~~~
+
+## Windows desktop mode
+
+Use this mode for FLUX to read the current Windows media session and follow its album artwork. Windows 10 version 1809 or later (or Windows 11) and an up-to-date Node installation are required.
+
+~~~sh
+npm ci
+npm run desktop
+~~~
+
+Play music in your usual player, then select **Desktop audio** in FLUX. The first launch downloads the Electron runtime. FLUX reads metadata and artwork from the active Windows media session, with audio captured from Windows loopback. Audio from other apps using the same output can also affect the visualization. Use **Stop desktop** to stop capture and metadata polling. Turn off **Follow album artwork** in Studio to keep your chosen palette.
+
+Players decide what they publish to Windows. When a player provides a title but no cover, FLUX displays the title and uses the selected scene palette. The hosted browser build can capture shared audio from a tab or screen when offered by the browser. Windows song detection and cover colors are available in the Windows app.

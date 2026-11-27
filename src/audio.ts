@@ -64,11 +64,32 @@ export class AudioEngine {
     this.mic?.mediaStream.getTracks().forEach((track) => track.stop());
     this.mic = undefined;
   }
+  async desktop(ended: () => void) {
+    const request = ++this.sourceRequest;
+    if (!navigator.mediaDevices?.getDisplayMedia)
+      throw Error("Desktop capture is unavailable here.");
+    const stream = await navigator.mediaDevices.getDisplayMedia({
+      video: true,
+      audio: true,
+    });
+    if (!stream.getAudioTracks().length) {
+      stream.getTracks().forEach((track) => track.stop());
+      throw Error("Choose a screen or tab and enable Share audio.");
+    }
+    const connected = await this.connectInput(stream, request);
+    if (connected)
+      for (const track of stream.getTracks())
+        track.addEventListener("ended", ended, { once: true });
+    return connected;
+  }
   async microphone() {
     const request = ++this.sourceRequest;
     if (!navigator.mediaDevices?.getUserMedia)
       throw Error("Microphone requires HTTPS and a supported browser.");
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    return this.connectInput(stream, request);
+  }
+  private async connectInput(stream: MediaStream, request: number) {
     try {
       await this.activate();
       if (request !== this.sourceRequest) {
