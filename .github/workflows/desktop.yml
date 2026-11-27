@@ -1,6 +1,11 @@
 name: Package Windows FLUX
 on:
   workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag
+        required: true
+        type: string
 permissions:
   contents: write
 jobs:
@@ -24,11 +29,13 @@ jobs:
           Rename-Item FLUX/electron.exe FLUX.exe
           $app = New-Item -ItemType Directory -Path FLUX/resources/app
           Copy-Item dist,desktop,LICENSE -Destination $app.FullName -Recurse
-          '{"name":"flux","version":"1.1.0","main":"desktop/main.cjs"}' | Set-Content "$($app.FullName)/package.json"
+          $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          @{name='flux';version=$version;main='desktop/main.cjs'} | ConvertTo-Json | Set-Content "$($app.FullName)/package.json"
           Compress-Archive FLUX FLUX-Windows-x64.zip -CompressionLevel Fastest
       - name: Publish release
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
         run: |
-          gh release create v1.1.0 FLUX-Windows-x64.zip --target ${{ github.sha }} --title "FLUX 1.1 — Windows desktop mode" --notes "Extract the full zip, launch FLUX.exe, and choose Desktop audio while music is playing. Includes the five redesigned environments and album-art palettes."
+          gh release create v1.1.0 FLUX-Windows-x64.zip --target ${{ github.sha }} --title "FLUX 1.1 â€” Windows desktop mode" --notes "Extract the full zip, launch FLUX.exe, and choose Desktop audio while music is playing. Includes the five redesigned environments and album-art palettes."

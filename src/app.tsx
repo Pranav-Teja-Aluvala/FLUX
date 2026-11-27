@@ -431,7 +431,7 @@ function App() {
           </svg>
           FLUX
         </a>
-        <span className="subtitle">Audio visual instrument</span>
+        <span className="subtitle">Audio visualizer</span>
         <div className="top-actions">
           <button
             onClick={() => setCinema((v) => !v)}
@@ -479,10 +479,8 @@ function App() {
             </button>
           </div>
           <div className="stage-foot">
-            <span>
-              {scene === 3 ? "PROCEDURAL SURFACE" : "DRAG TO EXPLORE"}
-            </span>
-            <span>{fps ? fps + " FPS" : "WebGL"}</span>
+            {scene !== 3 && <span>Drag to explore</span>}
+            {fps > 0 && <span>{fps} FPS</span>}
           </div>
           {graphicsError && (
             <p role="alert" className="graphics-error">
@@ -491,15 +489,30 @@ function App() {
           )}
         </section>
         <nav className="environments" aria-label="Environments">
-          {scenes.map(([label, accent], i) => (
+          <h2>Scenes</h2>
+          {scenes.map(([label, accent, description], i) => (
             <button
               key={label}
+              aria-label={label}
               aria-pressed={scene === i}
               style={{ "--scene-color": accent } as React.CSSProperties}
               onClick={() => setScene(i)}
             >
-              <i aria-hidden="true" />
-              {label}
+              <img
+                src={
+                  import.meta.env.BASE_URL +
+                  "scenes/" +
+                  label.toLowerCase() +
+                  ".webp"
+                }
+                alt=""
+                width="52"
+                height="52"
+              />
+              <span className="scene-copy">
+                <strong>{label}</strong>
+                <span>{description}</span>
+              </span>
             </button>
           ))}
         </nav>
@@ -545,11 +558,15 @@ function App() {
           </div>
         </div>
         <div className="input-actions">
-          <button onClick={() => file.current?.click()}>Open audio</button>
+          <button className="file-source" onClick={() => file.current?.click()}>
+            Open audio
+          </button>
           <button aria-pressed={mic} onClick={() => void microphone()}>
             {mic ? "Stop mic" : "Mic"}
           </button>
-          <button onClick={() => void demo()}>Play demo</button>
+          <button className="demo-source" onClick={() => void demo()}>
+            Play demo
+          </button>
           <button
             className="desktop-source"
             aria-pressed={desktop}
