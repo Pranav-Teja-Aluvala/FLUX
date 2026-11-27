@@ -623,6 +623,32 @@ function App() {
         return;
       }
       if (
+        inExtension &&
+        desktop &&
+        !e.defaultPrevented &&
+        !e.altKey &&
+        !e.ctrlKey &&
+        !e.metaKey &&
+        !e.shiftKey &&
+        (e.key === "ArrowLeft" || e.key === "ArrowRight") &&
+        !(
+          e.target instanceof HTMLElement &&
+          (e.target.isContentEditable ||
+            e.target.closest("input,textarea,select,[role=slider]"))
+        )
+      ) {
+        e.preventDefault();
+        // One skip per press keeps messages from queuing when a key is held.
+        if (!e.repeat) {
+          void controlYouTube("flux:seek-relative", {
+            time: e.key === "ArrowLeft" ? -5 : 5,
+          }).then((ok) => {
+            if (!ok) setError("Could not skip in the linked YouTube video.");
+          });
+        }
+        return;
+      }
+      if (
         e.repeat ||
         (e.target instanceof HTMLElement &&
           e.target.closest("input,button,textarea,select"))

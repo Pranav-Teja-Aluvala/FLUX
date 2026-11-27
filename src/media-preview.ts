@@ -152,7 +152,7 @@ export function boundedCrop(crop: Crop | null | undefined): Crop | null {
 }
 
 export async function controlYouTube(
-  type: "flux:toggle-play" | "flux:seek-line",
+  type: "flux:toggle-play" | "flux:seek-line" | "flux:seek-relative",
   data?: Record<string, unknown>,
 ) {
   if (!inExtension) return false;

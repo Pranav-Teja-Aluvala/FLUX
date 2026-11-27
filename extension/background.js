@@ -64,6 +64,7 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
       "flux:start-capture",
       "flux:toggle-play",
       "flux:seek-line",
+      "flux:seek-relative",
     ].includes(message?.type)
   )
     return false;
@@ -89,9 +90,13 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
     }
     if (
       message.type === "flux:toggle-play" ||
-      message.type === "flux:seek-line"
+      message.type === "flux:seek-line" ||
+      message.type === "flux:seek-relative"
     ) {
       const seek = message.type === "flux:seek-line";
+      const relative = message.type === "flux:seek-relative";
+      if (relative && message.time !== -5 && message.time !== 5)
+        return { ok: false };
       if (
         seek &&
         (!Number.isFinite(message.time) ||
@@ -102,13 +107,32 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
       const [result] = await chrome.scripting.executeScript({
         target: { tabId: id },
         world: "MAIN",
-        args: seek ? [true, message.time, message.videoId] : [false, null, null],
-        func: async (seek, time, videoId) => {
+        args: [
+          message.type,
+          seek || relative ? message.time : null,
+          seek ? message.videoId : null,
+        ],
+        func: async (type, time, videoId) => {
           const video = document.querySelector(
             "#movie_player video, ytmusic-player video",
           );
           if (!video) return false;
-          if (seek) {
+          if (type === "flux:seek-relative") {
+            if (video.closest(".ad-showing")) return false;
+            let start = 0;
+            let end = video.duration;
+            // Live streams only support skipping within the DVR window.
+            if (!Number.isFinite(end)) {
+              const range = video.seekable.length - 1;
+              if (range < 0) return false;
+              start = video.seekable.start(range);
+              end = video.seekable.end(range);
+            }
+            video.currentTime = Math.max(
+              start,
+              Math.min(end, video.currentTime + time),
+            );
+          } else if (type === "flux:seek-line") {
             if (
               new URL(location.href).searchParams.get("v") !== videoId ||
               !Number.isFinite(video.duration) ||
