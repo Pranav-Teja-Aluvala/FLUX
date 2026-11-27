@@ -1,3 +1,4 @@
+import { contentCrop, readYouTube, type Crop } from "./media-preview";
 import {
   coverPalette,
   paletteFromPixels,
@@ -77,9 +78,15 @@ function App() {
   const [captureId, setCaptureId] = useState("");
   const [capturePending, setCapturePending] = useState(false);
   const video = useRef<HTMLVideoElement>(null);
+  const preview = useRef<HTMLCanvasElement>(null);
+  const cropGuide = useRef<Crop | null>(null);
+  const [controls, setControls] = useState(false);
+  const [browserTrack, setBrowserTrack] = useState<Track | null>(null);
+  cropGuide.current = browserTrack?.crop ?? null;
   const sharedAt = useRef(0);
   const captureDock = useRef<HTMLDetailsElement>(null);
   const [track, setTrack] = useState<Track | null>(null);
+  const playerTrack = browserTrack ?? track;
   const [albumColors, setAlbumColors] = useState<CoverPalette>();
   const [followCover, setFollowCover] = useState(true);
   const [source, setSource] = useState(""),
@@ -100,7 +107,12 @@ function App() {
     ? ((visual === "video" && shared ? frameColors : albumColors) ??
       albumColors)
     : undefined;
-  state.current = { scene, settings, reduced, albumColors: artwork };
+  state.current = {
+    scene: (desktop || mic || playing) && !controls ? 0 : scene,
+    settings,
+    reduced,
+    albumColors: artwork,
+  };
 
   useEffect(() => {
     if (!desktop || !window.fluxDesktop) return;
@@ -143,6 +155,23 @@ function App() {
     };
   }, [desktop]);
 
+  useEffect(() => {
+    if (!desktop || window.fluxDesktop) return;
+    let quit = false,
+      timer: number;
+    async function read() {
+      const media = await readYouTube();
+      if (!quit) {
+        setBrowserTrack(media);
+        timer = window.setTimeout(read, 550);
+      }
+    }
+    void read();
+    return () => {
+      quit = true;
+      clearTimeout(timer);
+    };
+  }, [desktop]);
   const cover = desktop ? track?.cover : undefined;
   useEffect(() => {
     let stale = false;
@@ -162,19 +191,21 @@ function App() {
   function playbackClock() {
     if (!desktop) return engine.media.currentTime;
     if (
-      track &&
-      typeof track.position === "number" &&
-      (track.duration ?? 0) > 0
+      playerTrack &&
+      typeof playerTrack.position === "number" &&
+      (playerTrack.duration ?? 0) > 0
     ) {
       const age =
-        track.sampledAt && track.playing
-          ? Math.max(0, (Date.now() - track.sampledAt) / 1000)
+        playerTrack.sampledAt && playerTrack.playing
+          ? Math.max(0, (Date.now() - playerTrack.sampledAt) / 1000)
           : 0;
       const rate =
-        typeof track.rate === "number" && track.rate > 0 ? track.rate : 1;
+        typeof playerTrack.rate === "number" && playerTrack.rate > 0
+          ? playerTrack.rate
+          : 1;
       return Math.max(
         0,
-        Math.min(track.duration!, track.position + age * rate),
+        Math.min(playerTrack.duration!, playerTrack.position + age * rate),
       );
     }
     return Math.max(0, (performance.now() - sharedAt.current) / 1000);
@@ -185,28 +216,61 @@ function App() {
     if (!showVideo || !shared || !element) return;
     element.srcObject = shared;
     void element.play().catch(() => {});
+    const target = preview.current!;
+    const output = target.getContext("2d")!;
     const sample = document.createElement("canvas");
-    sample.width = sample.height = 40;
+    sample.width = 96;
+    sample.height = 54;
     const ctx = sample.getContext("2d", { willReadFrequently: true })!;
-    let last = "";
-    const update = () => {
-      if (element.readyState < 2 || !element.videoWidth) return;
-      ctx.drawImage(element, 0, 0, 40, 40);
-      const colors = paletteFromPixels(ctx.getImageData(0, 0, 40, 40).data);
-      const signature = colors.join();
-      if (signature !== last) {
-        last = signature;
-        setFrameColors(colors);
+    let last = "",
+      nextColor = 0,
+      lastFrame = 0,
+      frame = 0,
+      region: Crop | null = null;
+    const render = (now: number) => {
+      frame = requestAnimationFrame(render);
+      if (element.readyState < 2 || !element.videoWidth || now - lastFrame < 38)
+        return;
+      lastFrame = now;
+      const w = element.videoWidth,
+        h = element.videoHeight;
+      if (now >= nextColor) {
+        ctx.drawImage(element, 0, 0, 96, 54);
+        region =
+          cropGuide.current ??
+          contentCrop(ctx.getImageData(0, 0, 96, 54).data, 96, 54);
+      }
+      const r = region ?? { x: 0, y: 0, w: 1, h: 1 };
+      const width = Math.max(1, r.w * w),
+        height = Math.max(1, r.h * h);
+      const scale = Math.min(1, 600 / Math.max(width, height));
+      const tw = Math.max(1, Math.round(width * scale)),
+        th = Math.max(1, Math.round(height * scale));
+      if (target.width !== tw || target.height !== th) {
+        target.width = tw;
+        target.height = th;
+      }
+      output.drawImage(element, r.x * w, r.y * h, width, height, 0, 0, tw, th);
+      if (now >= nextColor) {
+        ctx.drawImage(target, 0, 0, 96, 54);
+        const colors = paletteFromPixels(ctx.getImageData(0, 0, 96, 54).data);
+        const signature = colors.join();
+        if (signature !== last) {
+          last = signature;
+          setFrameColors(colors);
+        }
+        nextColor = now + 1150;
       }
     };
-    const interval = window.setInterval(update, 850);
+    frame = requestAnimationFrame(render);
     return () => {
-      clearInterval(interval);
+      cancelAnimationFrame(frame);
       element.srcObject = null;
     };
   }, [shared, showVideo]);
 
   function clearCaptureView() {
+    setBrowserTrack(null);
     setShared(undefined);
     setFrameColors(undefined);
     setTrack(null);
@@ -244,6 +308,7 @@ function App() {
         setFrameColors(undefined);
         setMic(false);
         setDesktop(true);
+        setControls(false);
         setSource("Shared audio");
         if (captureDock.current) captureDock.current.open = false;
       }
@@ -349,6 +414,7 @@ function App() {
     setDesktop(false);
     clearCaptureView();
     setSource(label);
+    setControls(false);
     try {
       engine.volume(volume);
       await engine.load(value, typeof value === "string");
@@ -371,8 +437,10 @@ function App() {
     }
     if (!source) return demo();
     try {
-      if (engine.media.paused) await engine.play();
-      else engine.media.pause();
+      if (engine.media.paused) {
+        setControls(false);
+        await engine.play();
+      } else engine.media.pause();
     } catch (e) {
       setError(message(e));
     }
@@ -390,6 +458,7 @@ function App() {
         setDesktop(false);
         clearCaptureView();
         setMic(true);
+        setControls(false);
         setSource("Live microphone");
       }
     } catch (e) {
@@ -398,6 +467,11 @@ function App() {
   }
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setControls((v) => !v);
+        setCinema(false);
+        return;
+      }
       if (
         e.repeat ||
         (e.target instanceof HTMLElement &&
@@ -408,7 +482,7 @@ function App() {
         e.preventDefault();
         void toggle();
       }
-      if (e.key === "Escape") setCinema(false);
+
       if (e.key.toLowerCase() === "f") setCinema((v) => !v);
     };
     window.addEventListener("keydown", handler);
@@ -490,10 +564,17 @@ function App() {
       setError(message(e));
     }
   }
-  const current = scenes[scene];
+  const listening = (desktop || mic || playing) && !controls;
+  const activeScene = listening ? 0 : scene;
+  const current = scenes[activeScene];
   return (
     <div
-      className={["app", cinema && "cinema", reduced && "reduced"]
+      className={[
+        "app",
+        cinema && "cinema",
+        reduced && "reduced",
+        listening && "listening",
+      ]
         .filter(Boolean)
         .join(" ")}
       style={{ "--accent": artwork?.[2] ?? current[1] } as React.CSSProperties}
@@ -545,11 +626,24 @@ function App() {
       <main className="workspace">
         <Lyrics
           clock={playbackClock}
-          track={desktop ? track : null}
+          track={desktop ? playerTrack : null}
+          reading={listening}
           source={source}
           live={desktop}
         />
-        <section className="stage" aria-label="Audio-reactive environment">
+        <section
+          className="stage"
+          aria-label="Audio-reactive environment"
+          onDoubleClick={() => setControls((v) => !v)}
+        >
+          {listening && (
+            <button
+              className="restore-controls"
+              onClick={() => setControls(true)}
+            >
+              Show controls
+            </button>
+          )}
           <canvas ref={canvas} aria-label={current[0] + " visualization"} />
           <nav className="visual-modes" aria-label="Visualizer">
             <button aria-pressed={scene === 0} onClick={() => setScene(0)}>
@@ -630,20 +724,27 @@ function App() {
             <>
               <figure className="media-frame">
                 {showVideo ? (
-                  <video
-                    ref={video}
-                    muted
-                    autoPlay
-                    playsInline
-                    aria-label="Live shared video"
-                  />
+                  <>
+                    <video
+                      ref={video}
+                      muted
+                      autoPlay
+                      playsInline
+                      hidden
+                      aria-hidden="true"
+                    />
+                    <canvas
+                      ref={preview}
+                      aria-label="Cropped live shared video"
+                    />
+                  </>
                 ) : cover ? (
                   <img src={cover} alt="Current album artwork" />
                 ) : null}
               </figure>
               <div className="media-caption">
-                <strong>{track?.title || "Shared video"}</strong>
-                {track?.artist && <span>{track.artist}</span>}
+                <strong>{playerTrack?.title || "Shared video"}</strong>
+                {playerTrack?.artist && <span>{playerTrack.artist}</span>}
               </div>
               {shared && cover && (
                 <div className="media-switch">
@@ -752,13 +853,13 @@ function App() {
             {cover && <img className="album-cover" src={cover} alt="" />}
             <div className="track">
               <span>
-                {desktop && track?.title
-                  ? track.title
+                {desktop && playerTrack?.title
+                  ? playerTrack.title
                   : source || "No audio selected"}
               </span>
               <span>
                 {desktop
-                  ? track?.artist ||
+                  ? playerTrack?.artist ||
                     (window.fluxDesktop
                       ? "Waiting for a Windows media session"
                       : "Browser capture")

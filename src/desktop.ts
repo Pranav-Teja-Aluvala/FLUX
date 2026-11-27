@@ -1,3 +1,4 @@
+import type { Crop } from "./media-preview";
 export type Track = {
   title: string;
   artist: string;
@@ -8,6 +9,8 @@ export type Track = {
   sampledAt?: number;
   duration?: number;
   rate?: number;
+  crop?: Crop | null;
+  caption?: string;
 };
 declare global {
   interface Window {
@@ -47,7 +50,7 @@ export function paletteFromPixels(data: Uint8ClampedArray): CoverPalette {
     const rgb = [data[i], data[i + 1], data[i + 2]],
       hi = Math.max(...rgb),
       lo = Math.min(...rgb);
-    if (hi < 23 || lo > 243) continue;
+    if (hi < 35 || lo > 246) continue;
     const key = (rgb[0] >> 5) * 64 + (rgb[1] >> 5) * 8 + (rgb[2] >> 5);
     let bin = bins.get(key);
     if (!bin) {
@@ -55,7 +58,7 @@ export function paletteFromPixels(data: Uint8ClampedArray): CoverPalette {
       bins.set(key, bin);
     }
     bin.count++;
-    bin.score += 0.2 + (hi - lo) / 155;
+    bin.score += 0.13 + Math.pow((hi - lo) / 255, 0.78) * 1.8;
     rgb.forEach((v, k) => (bin.rgb[k] += v));
   }
   const sorted = [...bins.values()]
@@ -65,14 +68,14 @@ export function paletteFromPixels(data: Uint8ClampedArray): CoverPalette {
   const main = sorted[0];
   const distance = (a: number[], b: number[]) =>
     a.reduce((sum, v, i) => sum + (v - b[i]) ** 2, 0);
+  const chroma = (v: number[]) => Math.max(...v) - Math.min(...v);
   const rival =
-    sorted.find((v) => distance(v, main) > 8500) ??
-    main.map((v) => v * 0.5 + 115);
-  const light =
-    sorted.find((v) => distance(v, rival) > 5000 && distance(v, main) > 5000) ??
-    main.map((v) => v * 0.29 + 177);
+    sorted.find(
+      (v) => distance(v, main) > 7800 && (chroma(main) < 29 || chroma(v) > 35),
+    ) ?? main.map((v) => v * 0.72 + 48);
+  const light = main.map((v, i) => (v + rival[i]) * 0.26 + 110);
   const hex = (rgb: number[]) => {
-    const factor = Math.max(1, 146 / Math.max(1, ...rgb));
+    const factor = Math.max(1, 152 / Math.max(1, ...rgb));
     return (
       "#" +
       rgb

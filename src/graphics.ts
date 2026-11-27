@@ -34,7 +34,7 @@ void main(){
  float fold=sin(p.x*(3.+complexity*3.)+t)*cos(p.y*6.-t*.7)*sin(p.z*5.+t*.41);
  p *= 1.+bass*.23+fold*(.09+mid*.23)*dist;
  p += normalize(p)*pow(seed,20.)*(.1+high*2.4);
- tone=clamp((position.y+1.2)/2.4+fold*.15,0.,1.);
+ tone=clamp(.5+(position.x*.56+position.y*.31+position.z*.18)+fold*.24+sin(position.z*5.-t*.65)*.11,0.,1.);
  }else if(kind==1){
  float z=p.z+t*1.35;
  float ridges=pow(.5+.5*sin(p.x*.67+sin(z*.45)*1.3+sin(z*.17)*2.),2.8);
@@ -62,6 +62,7 @@ void main(){
  float d=length(gl_PointCoord-.5)*2.;
  if(d>1.)discard;
  vec3 col=mix(mix(a,c,min(tone*2.,1.)),b,max(tone*2.-1.,0.));
+ if(kind==0)col=mix(mix(a,b,smoothstep(.18,.82,tone)),c,pow(1.-abs(tone*2.-1.),5.)*.15);
  float alpha=exp(-d*d*(3.2-bloom))*(1.-smoothstep(.60,1.,d))/(1.+max(0.,depth-4.)*.09);
  if(kind==1)alpha=min(1.,alpha*(4.+tone*2.)*(.27+.73*exp(-max(0.,depth-4.)*.045)));
  if(kind==1)col=mix(col,b,pow(tone,3.)*.65);

@@ -6,13 +6,17 @@ FLUX is a browser instrument for turning sound into real-time WebGL environments
 
 ## Listening view
 
-- Select **Desktop audio** in the bottom dock. In Chrome, choose the tab playing music and enable **Share tab audio**. The right pane shows the real shared feed. The Windows app selects the playing window when its title matches the Windows media session. Otherwise it captures the primary display and prefers album art in the right pane when available. The collapsed controls let you choose a different window.
-- Switch between **Singularity** and **Chromatic** in the center. Chromatic maps actual FFT bins to a labeled log-frequency axis, with peak holds and a quiet baseline.
-- The visualizer follows the colors sampled from the visible video. When Windows reports cover art, switch the right pane to **Album art** to use its colors instead.
-- On the left, search for a timed recording through LRCLIB or load a local LRC. Windows media sessions and local audio files supply a playback clock. For browser capture and mixes, enter the actual song and click a lyric as you hear it to align the timeline. The Earlier and Later buttons adjust the offset.
-- **Space** toggles local playback or stops live input. **F** opens Cinema and **Escape** exits. Drag the visualization to orbit. PNG and Rec capture the visualizer canvas.
+**Desktop audio** starts the listening view. While audio plays, FLUX shows Singularity, the current lyrics when available, and a cropped live video frame or album cover. Press **Escape** or double-click the middle of the screen to bring the controls back. Chromatic remains alongside Singularity in the controls.
 
-Starting Windows desktop capture enables automatic timed-lyrics lookup of the active track title and artist through LRCLIB when Windows also provides its duration. Exact title, artist, and duration matches are used automatically. Browser capture uses the manual lyrics search or an LRC file. Video frames, audio, and color extraction stay local. The browser controls its own screen-sharing indicator.
+The Windows app captures system audio without a Chrome sharing banner. The browser edition uses Chrome's sharing picker and indicator. Choose the music tab so FLUX can frame the video. With the YouTube Link helper, FLUX crops at the player's edges and follows track changes using YouTube chapters or captions. Without it, FLUX can find centered artwork in many dark videos and still use it for color sampling.
+
+On Windows or a linked YouTube tab, FLUX uses a matching title and duration, with the artist checked when provided to load timed lyrics automatically. If a video exposes captions, those can appear in the listening view too. A mix without named chapters, usable track metadata, or captions may have no automatic lyrics. You can still search or load an LRC when the controls are visible.
+
+### YouTube Link for Chrome
+
+Download and extract the helper from the latest release. In Chrome, open `chrome://extensions`, enable **Developer mode**, and choose **Load unpacked**. Select the extracted `browser-helper` folder. In YouTube, click the extension icon once to link that tab. Return to the FLUX website, select **Desktop audio**, and share that tab with audio. The helper follows chapter changes while the same tab stays linked.
+
+The helper reads only the YouTube tab you explicitly link. FLUX uses LRCLIB for timed-lyrics matches, which sends song and artist text to that service. Audio, video, and pixel colors stay local.
 
 ## Development
 

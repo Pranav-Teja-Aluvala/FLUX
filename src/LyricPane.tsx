@@ -14,11 +14,13 @@ export function Lyrics({
   track,
   source,
   live,
+  reading,
 }: {
   clock: () => number;
   track: Track | null;
   source: string;
   live: boolean;
+  reading: boolean;
 }) {
   const [title, setTitle] = useState(""),
     [artist, setArtist] = useState("");
@@ -49,7 +51,7 @@ export function Lyrics({
     setArtist(trackArtist);
   }, [source, trackTitle, trackArtist]);
   useEffect(() => {
-    if (!live || !trackTitle || !trackArtist || !trackDuration) return;
+    if (!live || !trackTitle || !trackDuration) return;
     const controller = new AbortController();
     request.current = controller;
     setStatus("Finding timed lyrics for this song…");
@@ -138,6 +140,21 @@ export function Lyrics({
         setStatus(e instanceof Error ? e.message : String(e));
     }
   }
+  if (reading && view)
+    return (
+      <section className="lyrics-pane" aria-label="Live lyrics">
+        {track?.caption ? (
+          <p className="live-caption">{track.caption}</p>
+        ) : (
+          <p className="lyrics-wait">
+            {status.startsWith("Finding")
+              ? "Finding synced lyrics…"
+              : "No synced lyrics available"}
+          </p>
+        )}
+      </section>
+    );
+
   return (
     <section className="lyrics-pane" aria-label="Live lyrics">
       <header className="pane-header">

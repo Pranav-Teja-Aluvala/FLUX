@@ -931,3 +931,130 @@ input[type="checkbox"] {
 .demo-source:hover:not(:disabled) {
   background: #272c24;
 }
+
+:root {
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text", "Segoe UI",
+    sans-serif;
+}
+.media-frame canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  object-fit: contain;
+}
+.media-frame video[hidden] {
+  display: none;
+}
+.restore-controls {
+  position: absolute;
+  z-index: 2;
+  right: 14px;
+  bottom: 14px;
+  opacity: 0;
+  background: #161916;
+  color: #efeee7;
+  border-color: #333830;
+}
+.restore-controls:focus-visible {
+  opacity: 1;
+}
+.listening {
+  grid-template-rows: minmax(0, 1fr);
+  background: #080908;
+}
+.listening > header,
+.listening .bottom-dock,
+.listening .stage-label,
+.listening .stage-foot,
+.listening .visual-modes,
+.listening .view-tools,
+.listening .frequency-scale,
+.listening .media-pane .pane-header,
+.listening .media-caption,
+.listening .media-switch,
+.listening .palette-strip,
+.listening .lyrics-pane .pane-header,
+.listening .lyric-caption,
+.listening .lyric-hint,
+.listening .lyric-sync {
+  display: none;
+}
+.listening .workspace {
+  gap: 0;
+  padding: 0;
+  min-height: 100svh;
+}
+.listening .stage,
+.listening .lyrics-pane,
+.listening .media-pane {
+  background: #080908;
+  border: 0;
+  border-radius: 0;
+}
+.listening .lyrics-pane,
+.listening .media-pane {
+  justify-content: center;
+  padding: clamp(12px, 2.15vw, 36px);
+}
+.listening .media-pane {
+  display: grid;
+  align-content: center;
+}
+.listening .media-frame {
+  border-radius: 0;
+  background: transparent;
+}
+.listening .media-frame :is(canvas, img) {
+  max-height: 74svh;
+  width: 100%;
+  object-fit: contain;
+}
+.listening .lyric-scroll {
+  max-height: 62svh;
+}
+.listening .lyric-scroll button {
+  padding: 0;
+  font-size: clamp(17px, 2.1vw, 29px);
+  font-weight: 600;
+  line-height: 1.26;
+  letter-spacing: -0.025em;
+  color: #71766c;
+  border: 0;
+  background: transparent;
+}
+.listening .lyric-scroll li[aria-current="true"] button,
+.live-caption {
+  color: #f3f2eb;
+}
+.listening .lyric-scroll li {
+  margin-bottom: 16px;
+}
+.live-caption {
+  margin: 0;
+  font-size: clamp(18px, 2.08vw, 29px);
+  font-weight: 620;
+  line-height: 1.27;
+}
+.lyrics-wait {
+  color: #8e9387;
+  font-size: 13px;
+}
+@media (max-width: 775px) {
+  .listening .workspace {
+    min-height: 100svh;
+    grid-template-rows: minmax(275px, 48svh) auto;
+  }
+  .listening .lyrics-pane,
+  .listening .media-pane {
+    align-self: start;
+  }
+}
+@media (max-width: 455px) {
+  .listening .workspace {
+    grid-template-rows: minmax(255px, 43svh) auto auto;
+  }
+  .listening .media-frame :is(canvas, img) {
+    max-height: 30svh;
+  }
+}

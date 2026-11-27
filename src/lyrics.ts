@@ -80,14 +80,19 @@ export function exactRecording(
       .trim();
   const key = normalize(title),
     performer = normalize(artist);
-  if (!key || !performer || !Number.isFinite(seconds) || seconds <= 0) return;
-  return matches
-    .filter(
-      (match) =>
-        normalize(match.trackName) === key &&
-        normalize(match.artistName) === performer &&
-        Math.abs(match.duration - seconds) <= 4,
-    )
+  if (!key || !Number.isFinite(seconds) || seconds <= 0) return;
+  const plausible = matches.filter(
+    (match) =>
+      normalize(match.trackName) === key &&
+      Math.abs(match.duration - seconds) <= 4,
+  );
+  if (
+    !performer &&
+    new Set(plausible.map((match) => normalize(match.artistName))).size !== 1
+  )
+    return;
+  return plausible
+    .filter((match) => !performer || normalize(match.artistName) === performer)
     .sort(
       (a, b) => Math.abs(a.duration - seconds) - Math.abs(b.duration - seconds),
     )[0];

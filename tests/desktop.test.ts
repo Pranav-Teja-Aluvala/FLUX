@@ -48,3 +48,24 @@ test("automatic lyrics select only a matching recording and skip a long mix", ()
     undefined,
   );
 });
+
+test("automatic matching with a missing artist needs an unambiguous title and duration", () => {
+  const match = {
+    id: 1,
+    trackName: "Song",
+    artistName: "First Musician",
+    albumName: "",
+    duration: 120,
+    syncedLyrics: "[00:00]Line",
+  };
+  assert.equal(exactRecording([match], "Song", "", 120), match);
+  assert.equal(
+    exactRecording(
+      [match, { ...match, artistName: "Second Musician" }],
+      "Song",
+      "",
+      120,
+    ),
+    undefined,
+  );
+});
