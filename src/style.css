@@ -470,3 +470,17 @@ select {
     from { opacity: 0; transform: translateY(7px); }
   }
 }
+
+/* Announce the new scene, then return the artwork to the foreground. */
+.stage-label h1 {
+  transform-origin: left center;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .app:not(.reduced) .stage-label h1 {
+    animation: settle-title 460ms cubic-bezier(.2,.75,.27,1) 2s forwards;
+  }
+  @keyframes settle-title {
+    to { transform: scale(.63); }
+  }
+}
+.app.reduced .stage-label { animation: none; }

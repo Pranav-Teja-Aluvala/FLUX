@@ -309,7 +309,7 @@ function App() {
   const current = scenes[scene];
   return (
     <div
-      className={cinema ? "app cinema" : "app"}
+      className={["app", cinema && "cinema", reduced && "reduced"].filter(Boolean).join(" ")}
       style={{ "--accent": current[1] } as React.CSSProperties}
       onDragOver={(e) => {
         e.preventDefault();
