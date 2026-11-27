@@ -9,8 +9,11 @@ declare const chrome: {
       done: (result: unknown) => void,
     ): void;
     lastError?: unknown;
+    id?: string;
   };
 };
+export const inExtension =
+  typeof location !== "undefined" && location.protocol === "chrome-extension:";
 const bridgeId = "elkdmnmmhjekdcabldkbngjoohcohimg";
 function messageExtension(type: string, timeoutMs: number): Promise<unknown> {
   if (typeof chrome === "undefined" || !chrome.runtime?.sendMessage)
@@ -18,10 +21,14 @@ function messageExtension(type: string, timeoutMs: number): Promise<unknown> {
   return new Promise((resolve) => {
     const timeout = window.setTimeout(() => resolve(null), timeoutMs);
     try {
-      chrome.runtime!.sendMessage(bridgeId, { type }, (reply) => {
-        clearTimeout(timeout);
-        resolve(chrome.runtime?.lastError ? null : reply);
-      });
+      chrome.runtime!.sendMessage(
+        inExtension ? (chrome.runtime!.id ?? bridgeId) : bridgeId,
+        { type },
+        (reply) => {
+          clearTimeout(timeout);
+          resolve(chrome.runtime?.lastError ? null : reply);
+        },
+      );
     } catch {
       clearTimeout(timeout);
       resolve(null);

@@ -2,6 +2,7 @@ import { useLocalCaptions } from "./captions";
 import {
   boundedCrop,
   contentCrop,
+  inExtension,
   readYouTube,
   type Crop,
 } from "./media-preview";
@@ -344,6 +345,18 @@ function App() {
     }
   }
 
+  const autoConnect = useRef(false);
+  useEffect(() => {
+    if (
+      inExtension &&
+      !autoConnect.current &&
+      new URLSearchParams(location.search).has("source")
+    ) {
+      autoConnect.current = true;
+      void desktopAudio();
+    }
+  }, []);
+
   useEffect(() => {
     let stopped = false,
       cleanup: (() => void) | undefined;
@@ -597,12 +610,15 @@ function App() {
     }
   }
   const listening = (desktop || mic || playing) && !controls;
+  const extensionIdle = inExtension && !(desktop || mic || playing);
   const activeScene = listening ? 0 : scene;
   const current = scenes[activeScene];
   return (
     <div
       className={[
         "app",
+        inExtension && "extension-app",
+        extensionIdle && "extension-idle",
         cinema && "cinema",
         reduced && "reduced",
         listening && "listening",
@@ -642,7 +658,9 @@ function App() {
           </svg>
           FLUX
         </a>
-        <span className="subtitle">Audio visualizer</span>
+        <span className="subtitle">
+          {inExtension ? "YouTube listening view" : "Audio visualizer"}
+        </span>
         <div className="top-actions">
           <button
             onClick={() => {
@@ -672,6 +690,38 @@ function App() {
         </div>
       </header>
       <main className="workspace">
+        {extensionIdle && (
+          <section className="extension-welcome" aria-label="Start FLUX">
+            <div className="welcome-art" aria-hidden="true"></div>
+            <div className="welcome-copy">
+              <h1>
+                {capturePending ? "Connecting to YouTube…" : "Play something."}
+              </h1>
+              <p>
+                {capturePending
+                  ? "Keep the source tab open."
+                  : "Open a video on YouTube and click FLUX in Chrome’s toolbar."}
+              </p>
+              {!capturePending &&
+                (new URLSearchParams(location.search).has("source") ? (
+                  <button
+                    className="desktop-source"
+                    onClick={() => void desktopAudio()}
+                  >
+                    Reconnect
+                  </button>
+                ) : (
+                  <a
+                    href="https://www.youtube.com/"
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Open YouTube ↗
+                  </a>
+                ))}
+            </div>
+          </section>
+        )}
         <Lyrics
           clock={playbackClock}
           track={desktop ? playerTrack : null}
@@ -839,7 +889,11 @@ function App() {
             </>
           ) : (
             <div className="media-empty">
-              <p>Select Desktop audio to start.</p>
+              <p>
+                {inExtension
+                  ? "Play a video on YouTube, then click FLUX in the toolbar."
+                  : "Select Desktop audio to start."}
+              </p>
             </div>
           )}
         </aside>
@@ -857,7 +911,7 @@ function App() {
             {desktop ? "Shared video controls" : "Sharing and inputs"}
           </summary>
           <div className="capture-content">
-            {!window.fluxDesktop && (
+            {!window.fluxDesktop && !inExtension && (
               <a
                 href="https://github.com/Pranav-Teja-Aluvala/FLUX#youtube-link-for-chrome"
                 target="_blank"
@@ -970,7 +1024,9 @@ function App() {
                 ? "Stop desktop"
                 : capturePending
                   ? "Connecting…"
-                  : "Desktop audio"}
+                  : inExtension
+                    ? "Play linked tab"
+                    : "Desktop audio"}
             </button>
             <button
               className="file-source"
@@ -1051,7 +1107,7 @@ function App() {
             />{" "}
             Follow image colors
           </label>
-          {!window.fluxDesktop && (
+          {!window.fluxDesktop && !inExtension && (
             <a
               className="desktop-info"
               href="https://github.com/Pranav-Teja-Aluvala/FLUX#windows-desktop-mode"
