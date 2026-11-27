@@ -52,12 +52,37 @@
           <h2 id="extension-title">Stay with the song.</h2>
           <p>The current line glides into view. Scroll ahead on your own, tap a lyric to seek, or choose <strong>Follow lyrics</strong> to return to playback.</p>
         </div>
-        <figure class="product-shot">
-          <img src="./media/listening.webp" width="1280" height="800" alt="FLUX listening theater with a particle sphere and the current lyric highlighted" loading="lazy">
-          <figcaption>FLUX in Chrome with a controlled playback demo.</figcaption>
-        </figure>
+        <section class="gallery" aria-label="FLUX screenshot gallery" aria-roledescription="carousel">
+          <div class="gallery-stage">
+            <figure class="gallery-slide">
+              <img src="./media/singularity-indigo.webp" width="1600" height="900" alt="Indigo and magenta Singularity with synced lyrics during a TV Girl track" decoding="async">
+              <figcaption>Singularity · Indigo and magenta</figcaption>
+            </figure>
+            <figure class="gallery-slide" hidden>
+              <img src="./media/singularity-blue.webp" width="1600" height="900" alt="Blue Singularity and synced lyrics during a track by The Marías" loading="lazy" decoding="async">
+              <figcaption>Singularity · Blue and silver</figcaption>
+            </figure>
+            <figure class="gallery-slide" hidden>
+              <img src="./media/spectrum-front.webp" width="1600" height="900" alt="Live Spectrum with copper bass ridges moving across the frequency surface" loading="lazy" decoding="async">
+              <figcaption>Spectrum · Phase Zero, front view</figcaption>
+            </figure>
+            <figure class="gallery-slide" hidden>
+              <img src="./media/spectrum-orbit.webp" width="1600" height="900" alt="Live Spectrum seen from an angle, showing the depth of its rolling frequency history" loading="lazy" decoding="async">
+              <figcaption>Spectrum · Phase Zero, orbital view</figcaption>
+            </figure>
+          </div>
+          <div class="gallery-controls" hidden>
+            <div class="gallery-paging">
+              <button type="button" data-gallery-step="-1" aria-label="Previous screenshot">←</button>
+              <span id="gallery-position" aria-live="off">1 / 4</span>
+              <button type="button" data-gallery-step="1" aria-label="Next screenshot">→</button>
+            </div>
+            <button type="button" id="gallery-play">Pause slideshow</button>
+          </div>
+        </section>
         <div class="details">
           <article><h3>Artwork in motion</h3><p>The linked video's thumbnail supplies the theater palette. Singularity reacts to the captured tab audio.</p></article>
+          <article><h3>Spectrum in depth</h3><p>Drag the live demo to orbit the surface. Bass lives on the copper edge. Treble reaches the violet edge. The newest signal enters at the front.</p></article>
           <article><h3>Playback in sync</h3><p>FLUX uses timed lyrics when it finds a match and falls back to YouTube captions when available. Arrow keys skip five seconds.</p></article>
           <article><h3>Optional local analysis</h3><p>The Windows companion can separate vocals from backing tracks and generate English captions on your device.</p></article>
         </div>

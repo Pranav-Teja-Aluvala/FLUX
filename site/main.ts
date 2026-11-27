@@ -1,11 +1,9 @@
 import gsap from "gsap";
-import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { AudioEngine } from "../src/audio";
 import { defaults } from "../src/settings";
 import { mountGraphics } from "../src/graphics";
 import demo from "../public/phase-zero.wav?url";
-
-gsap.registerPlugin(ScrollTrigger);
+import "./gallery";
 
 const play = document.querySelector<HTMLButtonElement>("#play-demo")!;
 const live = document.querySelector("#demo-state")!;
@@ -17,12 +15,17 @@ const settings = { ...defaults, camera: 0.22, density: 0.72 };
 const reduced = matchMedia("(prefers-reduced-motion: reduce)");
 let scene = 0;
 let changing = false;
+let stageInView = true;
+const stageObserver = new IntersectionObserver(([entry]) => {
+  stageInView = entry.isIntersecting;
+});
+stageObserver.observe(stage);
 
 try {
   mountGraphics(canvas, engine, () => ({
     scene, settings, reduced: reduced.matches,
     albumColors: ["#5b84bb", "#baadf9", "#e5f2ff"],
-  }), () => {});
+  }), () => {}, () => stageInView && !document.hidden);
   stage.dataset.ready = "true";
   live.textContent = "Ready to play";
   document.querySelector<HTMLElement>(".mode-buttons")!.hidden = false;
@@ -88,8 +91,4 @@ gsap.matchMedia().add("(prefers-reduced-motion: no-preference)", () => {
     .from(".instrument", { autoAlpha: 0, scale: 0.94, duration: 1.2 }, 0)
     .from(".hero h1 span", { autoAlpha: 0, y: 26, stagger: 0.08 }, 0.16)
     .from(".hero .kicker, .intro, .hero-actions", { autoAlpha: 0, y: 12, stagger: 0.06 }, 0.32);
-  gsap.from(".product-shot", {
-    autoAlpha: 0, y: 44, duration: 0.72, ease: "power3.out",
-    scrollTrigger: { trigger: ".product-shot", start: "top 86%", once: true },
-  });
 });

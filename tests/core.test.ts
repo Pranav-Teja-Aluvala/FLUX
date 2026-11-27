@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { band } from "../src/audio";
+import { spectrumCount, spectrumValue } from "../src/chromatic";
 import { defaults, parsePreset } from "../src/settings";
 test("FFT band isolates a signal at the expected frequency", () => {
   const fft = new Uint8Array(1024);
@@ -8,6 +9,21 @@ test("FFT band isolates a signal at the expected frequency", () => {
   assert.ok(band(fft, 20, 25, 180) > 0);
   assert.equal(band(fft, 20, 180, 2500), 0);
   assert.equal(band(fft, 20, 2500, 12500), 0);
+});
+
+test("the Spectrum separates bass and treble across its logarithmic width", () => {
+  const fft = new Uint8Array(1024);
+  const hzPerBin = 48000 / 2048;
+  const peakBand = () => Array.from({ length: spectrumCount }, (_, index) =>
+    spectrumValue(fft, hzPerBin, index),
+  ).indexOf(1);
+  fft[Math.round(110 / hzPerBin)] = 255;
+  assert.ok(peakBand() >= 0 && peakBand() < 10);
+  fft.fill(0);
+  fft[Math.round(7500 / hzPerBin)] = 255;
+  assert.ok(peakBand() > 27 && peakBand() < spectrumCount);
+  fft.fill(0);
+  assert.equal(peakBand(), -1);
 });
 test("preset clamps controls and discards unknown fields", () => {
   const preset = parsePreset({

@@ -21,6 +21,8 @@ function stamp(t: number) {
   return Math.floor(t / 60) + ":" + String(Math.floor(t % 60)).padStart(2, "0");
 }
 export function ExtensionTheater({
+  scene,
+  setScene,
   track,
   clock,
   caption,
@@ -35,6 +37,8 @@ export function ExtensionTheater({
   voiceMode,
   setVoiceMode,
 }: {
+  scene: 0 | 5;
+  setScene: (scene: 0 | 5) => void;
   track: Track | null;
   clock: () => number;
   caption: string;
@@ -235,6 +239,13 @@ export function ExtensionTheater({
       <div className="theater-shade" />
       <header className="theater-brand">
         <span className="theater-wordmark">FLUX</span>
+        <button
+          className="theater-spectrum"
+          aria-pressed={scene === 5}
+          onClick={() => setScene(scene === 5 ? 0 : 5)}
+        >
+          Spectrum
+        </button>
         {track && (
           <span
             className="theater-state"

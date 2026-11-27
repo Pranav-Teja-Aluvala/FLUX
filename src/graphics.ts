@@ -1,4 +1,4 @@
-import { spectrumCount, spectrumValue, spectrumFragment } from "./chromatic";
+import { createSpectrum } from "./chromatic";
 import type { CoverPalette } from "./desktop";
 import * as T from "three";
 import type { AudioEngine } from "./audio";
@@ -110,6 +110,7 @@ export function mountGraphics(
     albumColors?: CoverPalette;
   },
   stats: (fps: number) => void,
+  shouldRender = () => true,
 ) {
   const renderer = new T.WebGLRenderer({
     canvas,
@@ -148,8 +149,6 @@ export function mountGraphics(
     b: { value: colors[0][1].clone() },
     c: { value: colors[0][2].clone() },
     resolution: { value: new T.Vector2() },
-    levels: { value: new Float32Array(spectrumCount) },
-    peaks: { value: new Float32Array(spectrumCount) },
   };
   const pointsMaterial = new T.ShaderMaterial({
     uniforms: u,
@@ -165,16 +164,12 @@ export function mountGraphics(
       "varying vec2 uv0; void main(){uv0=uv;gl_Position=vec4(position,1.);}",
     fragmentShader: liquid,
   });
-  const spectrumMaterial = new T.ShaderMaterial({
-    uniforms: u,
-    vertexShader: surfaceMaterial.vertexShader,
-    fragmentShader: spectrumFragment,
-  });
+  const spectrum = createSpectrum();
   const points = new T.Points(new T.BufferGeometry(), pointsMaterial);
   points.frustumCulled = false;
   const surface = new T.Mesh(new T.PlaneGeometry(2, 2), surfaceMaterial);
   surface.frustumCulled = false;
-  scene.add(points, surface);
+  scene.add(points, surface, spectrum.group);
   const rig = new T.Group();
   scene.add(rig);
   const lineMaterial = new T.LineBasicMaterial({
@@ -277,10 +272,9 @@ export function mountGraphics(
     points.geometry.setAttribute("position", new T.BufferAttribute(coords, 3));
     points.geometry.setAttribute("seed", new T.BufferAttribute(seeds, 1));
     points.visible = size > 0;
-    surface.visible = index === 3 || index === 5;
-    surface.material = index === 5 ? spectrumMaterial : surfaceMaterial;
-    u.levels.value.fill(0);
-    u.peaks.value.fill(0);
+    surface.visible = index === 3;
+    spectrum.group.visible = index === 5;
+    if (index === 5) spectrum.reset();
     links.visible = index === 4;
     if (index === 2)
       for (let i = 0; i < 36; i++) {
@@ -303,11 +297,15 @@ export function mountGraphics(
       }
     renderer.clear();
   }
-  const hold = new Float32Array(spectrumCount);
   let lastAlbum: CoverPalette | undefined;
   const album = new Array(3).fill(null).map(() => new T.Color());
   function loop(now: number) {
     frame = requestAnimationFrame(loop);
+    if (!shouldRender()) {
+      last = stamp = now;
+      frames = 0;
+      return;
+    }
     const dt = Math.min(0.05, (now - last) / 1000);
     last = now;
     frames++;
@@ -443,25 +441,12 @@ export function mountGraphics(
     }
     if (index === 5) {
       const hz = (engine.context?.sampleRate ?? 48000) / 2048;
-      for (let i = 0; i < spectrumCount; i++) {
-        const sensitivity = i < 9 ? s.bass : i < 24 ? s.mid : s.treble;
-        const value = Math.min(
-          1,
-          spectrumValue(engine.bins, hz, i) * sensitivity,
-        );
-        const prior = u.levels.value[i];
-        const response = 1 - Math.exp(-dt * (value > prior ? 32 : 8));
-        u.levels.value[i] = prior + (value - prior) * response;
-        if (u.levels.value[i] >= u.peaks.value[i]) {
-          u.peaks.value[i] = u.levels.value[i];
-          hold[i] = 0.45;
-        } else if (hold[i] > 0) hold[i] -= dt;
-        else
-          u.peaks.value[i] = Math.max(
-            u.levels.value[i],
-            u.peaks.value[i] - dt * 0.54,
-          );
-      }
+      spectrum.sample(engine.bins, hz, dt, s.bass, s.mid, s.treble);
+      spectrum.light(b.energy, camera.aspect);
+      const distance = Math.max(1, 1.12 / camera.aspect);
+      const angle = 0.11 + T.MathUtils.clamp(drag, -0.62, 0.62);
+      camera.position.set(Math.sin(angle) * 5.7 * distance, 2.85 * distance, Math.cos(angle) * 5.7 * distance);
+      camera.lookAt(0, .24, -.57);
     }
     lineMaterial.color
       .copy(colorset[0])
@@ -472,7 +457,7 @@ export function mountGraphics(
       Math.floor(size * s.density * (index === 4 ? 1 : adaptive)),
     );
     fade.material.opacity =
-      reduced || index === 3 ? 1 : 1 - s.trails * (0.75 + b.energy * 0.15);
+      reduced || index === 3 || index === 5 ? 1 : 1 - s.trails * (0.75 + b.energy * 0.15);
     renderer.render(overlay, flat);
     renderer.clearDepth();
     renderer.render(scene, camera);
@@ -483,6 +468,8 @@ export function mountGraphics(
     canvas.removeEventListener("pointerdown", onDown);
     canvas.removeEventListener("pointermove", onMove);
     canvas.removeEventListener("lostpointercapture", onUp);
+    scene.remove(spectrum.group);
+    spectrum.dispose();
     scene.traverse((obj) => {
       if (
         obj instanceof T.Points ||
@@ -496,7 +483,6 @@ export function mountGraphics(
     pointsMaterial.dispose();
     surfaceMaterial.dispose();
     lineMaterial.dispose();
-    spectrumMaterial.dispose();
     renderer.dispose();
   };
 }

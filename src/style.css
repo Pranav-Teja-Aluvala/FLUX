@@ -1300,6 +1300,18 @@ input[type="checkbox"] {
   font-weight: 850;
   letter-spacing: 0.25em;
 }
+.theater-spectrum {
+  border-radius: 999px;
+  background: #121621b3;
+  border: 1px solid #ffffff32;
+  color: #e7ebf4;
+  font-size: 11px;
+  padding: 5px 9px;
+}
+.theater-spectrum[aria-pressed="true"] {
+  background: #dce8f9;
+  color: #111927;
+}
 .theater-state {
   display: inline-flex;
   align-items: center;
@@ -1730,4 +1742,8 @@ input[type="checkbox"] {
     #000 44%,
     transparent 93%
   );
+}
+.extension-app.listening[data-spectrum="true"] .stage {
+  mask-image: radial-gradient(ellipse 75% 54%, #000 63%, transparent 99%);
+  opacity: .98;
 }

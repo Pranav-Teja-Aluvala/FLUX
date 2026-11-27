@@ -4,7 +4,7 @@ export const scenes = [
   ["Hyperspace", "#5ce1ce", "Geometric tunnel"],
   ["Liquid", "#dfa7ee", "Iridescent surface"],
   ["Constellation", "#a9c8da", "Connected star field"],
-  ["Chromatic", "#f4a464", "Log-frequency spectrum"],
+  ["Spectrum", "#f4a464", "Live spectral surface"],
 ] as const;
 export const defaults = {
   density: 0.86,

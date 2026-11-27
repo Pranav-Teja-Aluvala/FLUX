@@ -15,6 +15,7 @@
 These screenshots were captured in Chrome with a controlled track, original fixture lyrics, and actual tab audio capture.
 
 - **Follow playback.** The current line eases into view. Scroll to browse, click a lyric to seek, or select **Follow lyrics** to return to the current line.
+- **See the frequency history.** Switch to **Spectrum** for a lit 3D surface driven by the captured audio. The front shows the newest sound and the ridges recede into the past. Drag to orbit it in the [browser demo](https://pranav-teja-aluvala.github.io/FLUX/#demo).
 - **Keep reading on edits.** FLUX matches exact recordings against [LRCLIB](https://lrclib.net/). When the first lookup misses, it can compare likely songs with YouTube captions and align a confirmed section. Caption tracks with word timings highlight words as they arrive.
 - **Listen locally.** The optional Windows companion uses Hybrid Demucs, Whisper, and SepFormer to separate voices and transcribe English audio. Audio processing stays on the device.
 

@@ -224,7 +224,7 @@ function App() {
       : undefined;
   state.current = {
     scene:
-      inExtension || ((desktop || mic || playing) && !controls) ? 0 : scene,
+      !inExtension && (desktop || mic || playing) && !controls ? 0 : scene,
     settings,
     reduced,
     albumColors: artwork,
@@ -771,6 +771,7 @@ function App() {
   const current = scenes[activeScene];
   return (
     <div
+      data-spectrum={inExtension && scene === 5 ? "true" : undefined}
       className={[
         "app",
         inExtension && "extension-app",
@@ -886,6 +887,8 @@ function App() {
         )}
         {inExtension && desktop && (
           <ExtensionTheater
+            scene={scene}
+            setScene={setScene}
             key={listeningKey}
             track={playerTrack}
             clock={playbackClock}
@@ -950,7 +953,7 @@ function App() {
                 Singularity
               </button>
               <button aria-pressed={scene === 5} onClick={() => setScene(5)}>
-                Chromatic
+                Spectrum
               </button>
             </nav>
           )}

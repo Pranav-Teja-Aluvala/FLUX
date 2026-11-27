@@ -120,10 +120,18 @@ button:disabled { cursor: default; opacity: .55; }
 .section-copy h2 { font-size: clamp(44px, 6.2vw, 86px); }
 .showcase .kicker { color: #405b81; }
 .showcase .section-copy p { color: #3f4c61; }
-.product-shot { margin: 40px 0 0; }
-.product-shot img { display: block; width: 100%; height: auto; border-radius: 18px; box-shadow: 0 24px 55px #29374940; }
-.product-shot figcaption { color: #475671; margin-top: 14px; font-size: 12px; }
-.details { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: clamp(17px, 4vw, 65px); border-top: 1px solid #15284627; margin-top: 48px; padding-top: 25px; }
+.gallery { margin-top: 38px; }
+.gallery-stage { background: #0b0d13; border-radius: 18px; overflow: hidden; }
+.gallery-slide { display: grid; margin: 0; }
+.gallery-slide img { display: block; width: 100%; height: auto; aspect-ratio: 16 / 9; }
+.gallery-slide figcaption { padding: 11px 15px; color: #d0d8e6; font-size: 12px; min-height: 38px; }
+.gallery-controls, .gallery-paging { display: flex; align-items: center; gap: 12px; }
+.gallery-controls { justify-content: space-between; padding: 12px 0 0; color: #283954; font-size: 13px; }
+.gallery-controls button { border: 1px solid #33466a34; border-radius: 999px; background: #fff8; color: #243653; padding: 8px 13px; min-height: 38px; }
+.gallery-controls button:hover { background: white; }
+.gallery-controls button:focus-visible { outline-color: #304c77; }
+.gallery-paging span { font-variant-numeric: tabular-nums; }
+.details { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: clamp(17px, 3vw, 52px); border-top: 1px solid #15284627; margin-top: 42px; padding-top: 25px; }
 .details h3, .download-list h3 { font-size: 19px; letter-spacing: -.025em; margin: 0 0 8px; }
 .details p, .download-list p { margin: 0; font-size: 14px; line-height: 1.55; }
 .details p { color: #3f4c61; }
@@ -138,6 +146,7 @@ button:disabled { cursor: default; opacity: .55; }
   .wrap { width: calc(100% - 44px); }
   .hero { grid-template-columns: 1fr; min-height: auto; }
   .hero h1 { font-size: clamp(57px, 11.5vw, 92px); }
+  .details { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 535px) {
   .details { grid-template-columns: 1fr; }
