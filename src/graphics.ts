@@ -62,7 +62,8 @@ void main(){
  if(d>1.)discard;
  vec3 col=mix(mix(a,c,min(tone*2.,1.)),b,max(tone*2.-1.,0.));
  float alpha=exp(-d*d*(3.2-bloom))*(1.-smoothstep(.60,1.,d))/(1.+max(0.,depth-4.)*.09);
- if(kind==1)alpha*= .18+.82*exp(-max(0.,depth-4.)*.045);
+ if(kind==1)alpha=min(1.,alpha*(4.+tone*2.)*(.27+.73*exp(-max(0.,depth-4.)*.045)));
+ if(kind==1)col=mix(col,b,pow(tone,3.)*.65);
  if(kind==4)col=mix(col,vec3(.95),pow(1.-d,5.));
  gl_FragColor=vec4(col*(1.1+bloom+high*.5),alpha);
  #include <colorspace_fragment>
@@ -486,8 +487,10 @@ export function mountGraphics(
       bars.instanceMatrix.needsUpdate = true;
       if (bars.instanceColor) bars.instanceColor.needsUpdate = true;
     }
-    lineMaterial.color.copy(colorset[0]).lerp(colorset[1], b.beat * 0.78);
-    lineMaterial.opacity = (index === 2 ? 0.52 : 0.24) + s.bloom * 0.12;
+    lineMaterial.color
+      .copy(colorset[0])
+      .lerp(colorset[1], index === 2 ? 0.15 + b.beat * 0.7 : b.beat * 0.78);
+    lineMaterial.opacity = (index === 2 ? 0.64 : 0.24) + s.bloom * 0.12;
     points.geometry.setDrawRange(
       0,
       Math.floor(size * s.density * (index === 4 ? 1 : adaptive)),

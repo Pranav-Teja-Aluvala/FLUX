@@ -69,7 +69,7 @@ export class AudioEngine {
     if (!navigator.mediaDevices?.getDisplayMedia)
       throw Error("Desktop capture is unavailable here.");
     const stream = await navigator.mediaDevices.getDisplayMedia({
-      video: true,
+      video: { frameRate: { ideal: 1 }, width: { ideal: 320 } },
       audio: true,
     });
     if (!stream.getAudioTracks().length) {
