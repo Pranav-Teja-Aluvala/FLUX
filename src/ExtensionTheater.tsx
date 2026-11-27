@@ -282,7 +282,7 @@ export function ExtensionTheater({
                         aria-current={i === index ? "true" : undefined}
                         onClick={() => void seek(line.time)}
                       >
-                        {line.text}
+                        <span className="theater-lyric-text">{line.text}</span>
                       </button>
                     ) : (
                       <button
