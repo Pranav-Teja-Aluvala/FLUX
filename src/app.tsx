@@ -1,5 +1,6 @@
 import { ExtensionTheater } from "./ExtensionTheater";
 import { useLocalCaptions } from "./captions";
+import { useLocalListening, type VoiceMode } from "./local-listening";
 import {
   boundedCrop,
   contentCrop,
@@ -92,6 +93,7 @@ function App() {
     return () => context.removeEventListener("statechange", check);
   }, [shared, engine]);
   const [captionFallback, setCaptionFallback] = useState(true);
+  const [voiceMode, setVoiceMode] = useState<VoiceMode>(0);
   const [frameColors, setFrameColors] = useState<CoverPalette>();
   const [visual, setVisual] = useState<"video" | "cover">("video");
   const [sources, setSources] = useState<{ id: string; name: string }[]>([]);
@@ -126,6 +128,13 @@ function App() {
     playerTrack?.title,
     playerTrack?.artist,
   ]);
+  const localListening = useLocalListening(
+    engine.context,
+    shared,
+    inExtension ? voiceMode : 0,
+    listeningKey,
+    playerTrack,
+  );
   useEffect(() => {
     setThumbnail(undefined);
     setThumbnailPalette(undefined);
@@ -885,6 +894,13 @@ function App() {
             enableCaptions={() => void speech.install()}
             thumbnail={thumbnail}
             accent={thumbnailPalette?.[2]}
+            analysis={localListening}
+            voiceMode={voiceMode}
+            setVoiceMode={(mode) => {
+              setVoiceMode(mode);
+              if (mode !== 0 && audioBlocked)
+                void engine.activate().catch((e) => setError(message(e)));
+            }}
             stop={stopDesktop}
             audioBlocked={audioBlocked}
             enableAudio={() =>

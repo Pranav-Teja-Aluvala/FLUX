@@ -10,6 +10,14 @@ The extension opens a lyrics-first theater with the video thumbnail as its backd
 
 FLUX removes YouTube upload labels such as “Official Video” before looking up the recording on LRCLIB. It keeps alternate-version labels and checks the duration before displaying timed lyrics. Use **Retry lyrics** if the service is temporarily unavailable. When a recording has no match, FLUX can use the player’s captions or on-device captioning on supported Chrome setups.
 
+### Local vocal separation on Windows
+
+For a new installation, run the packaged `listening/Install-Listening.ps1` with 64-bit Python 3.10–3.13 installed. It registers the native host for that unpacked FLUX folder. Pass `-PrepareModels` to download and load the weights during setup, or let FLUX download them when used. The downloads require roughly 1 GB of disk space for model weights in addition to Python dependencies and caches.
+
+In the listening tab, open **Audio analysis** and select **Vocals and backing** or one of the overlapping-speaker modes. [Hybrid Demucs](https://docs.pytorch.org/audio/main/generated/torchaudio.pipelines.HDEMUCS_HIGH_MUSDB_PLUS.html) separates the backing and vocal stems. [Whisper Base](https://huggingface.co/Systran/faster-whisper-base) transcribes English vocals locally. The two- and three-speaker modes use [SepFormer WHAMR](https://huggingface.co/speechbrain/sepformer-whamr) and [SepFormer WSJ0-3Mix](https://huggingface.co/speechbrain/sepformer-wsj03mix) for overlapping speech. Voice numbers identify estimated sources within each audio window.
+
+Audio stays in local memory and reaches the companion through Chrome native messaging. Results arrive after each five-second sample plus processing time. A busy companion skips samples to avoid building up a delay. The speech models are best suited to conversation and can miss sung words or voices in dense mixes. Song lookup still uses YouTube metadata and matching LRCLIB records.
+
 For an existing unpacked installation, refresh the same folder through Chrome’s extension page and accept the thumbnail host permission.
 
 [Browser and Windows versions are documented below.](#listening-view)

@@ -10,6 +10,7 @@ import {
   type Line,
 } from "./lyrics";
 import { controlYouTube } from "./media-preview";
+import type { LocalListening, VoiceMode } from "./local-listening";
 
 function stamp(t: number) {
   return Math.floor(t / 60) + ":" + String(Math.floor(t % 60)).padStart(2, "0");
@@ -25,6 +26,9 @@ export function ExtensionTheater({
   stop,
   audioBlocked,
   enableAudio,
+  analysis,
+  voiceMode,
+  setVoiceMode,
 }: {
   track: Track | null;
   clock: () => number;
@@ -36,6 +40,9 @@ export function ExtensionTheater({
   stop: () => void;
   audioBlocked: boolean;
   enableAudio: () => void;
+  analysis: LocalListening;
+  voiceMode: VoiceMode;
+  setVoiceMode: (mode: VoiceMode) => void;
 }) {
   const [lines, setLines] = useState<Line[]>([]),
     [looking, setLooking] = useState(false),
@@ -53,6 +60,13 @@ export function ExtensionTheater({
     duration = Math.round(track?.duration ?? 0);
   const cue = track?.caption || caption;
   const index = currentLine(lines, position);
+  const localLines = analysis.result?.lines.slice(-3) ?? [];
+  const showSynced = lines.length > 0 && !(voiceMode > 1 && localLines.length);
+  const lyricHeading = showSynced
+    ? "Lyrics"
+    : localLines.length
+      ? "Local captions"
+      : captionRows.length ? "Live captions" : "Lyrics";
   useEffect(() => {
     setLines([]);
     setLooking(false);
@@ -92,7 +106,7 @@ export function ExtensionTheater({
         ? "instant"
         : "smooth",
     });
-  }, [index, lines]);
+  }, [index, lines, showSynced]);
   useEffect(() => {
     if (!cue) {
       const expire = window.setTimeout(() => setCaptionRows([]), 2800);
@@ -145,15 +159,49 @@ export function ExtensionTheater({
       </header>
       <div className="theater-copy">
         <header className="theater-lyrics-title">
-          <h2>
-            {lines.length
-              ? "Lyrics"
-              : captionRows.length
-                ? "Live captions"
-                : "Lyrics"}
-          </h2>
+          <h2>{lyricHeading}</h2>
+          <details className="theater-analysis">
+            <summary>Audio analysis</summary>
+            <div className="theater-analysis-menu">
+              <label>
+                Local audio analysis
+                <select
+                  value={voiceMode}
+                  onChange={(event) =>
+                    setVoiceMode(Number(event.target.value) as VoiceMode)
+                  }
+                >
+                  <option value={0}>Off</option>
+                  <option value={1}>Vocals and backing</option>
+                  <option value={2}>Two overlapping speakers</option>
+                  <option value={3}>Three overlapping speakers</option>
+                </select>
+              </label>
+              {analysis.error && (
+                <>
+                  <p role="alert">{analysis.error}</p>
+                  <button onClick={analysis.retry}>Retry</button>
+                </>
+              )}
+            </div>
+          </details>
+          {voiceMode !== 0 && (
+            <div className="theater-sounds" role="status">
+              {analysis.status === "error"
+                ? "Audio analysis unavailable"
+                : analysis.status === "loading"
+                  ? "Loading local models…"
+                  : analysis.status === "connecting"
+                    ? "Connecting local models…"
+                    : analysis.status === "listening" && !analysis.result && track?.playing
+                      ? "Analyzing audio…"
+                      : (analysis.result?.sounds ?? []).map((sound) => (
+                          <span key={sound}>({sound})</span>
+                        ))}
+            </div>
+          )}
         </header>
-        {lines.length ? (
+        {showSynced ? (
           <div
             className="theater-lyric-scroll"
             ref={scroll}
@@ -164,7 +212,7 @@ export function ExtensionTheater({
                 line.text ? (
                   <li key={i} data-current={i === index} data-past={i < index}>
                     {track?.videoId ? (
-              <button
+                      <button
                         ref={i === index ? highlight : undefined}
                         aria-current={i === index ? "true" : undefined}
                         onClick={() => void seek(line.time)}
@@ -184,6 +232,23 @@ export function ExtensionTheater({
                 ) : null,
               )}
             </ol>
+          </div>
+        ) : localLines.length ? (
+          <div className="theater-cues theater-local-cues" aria-live="polite">
+            {localLines.map((line, index) => {
+              const overlaps = localLines.some((other) =>
+                other.lane !== line.lane &&
+                Math.min(line.end, other.end) - Math.max(line.start, other.start) > 0.15,
+              );
+              return (
+                <div key={`${line.lane}-${line.start}`}>
+                  {voiceMode > 1 && (
+                    <span>(Voice {line.lane}{overlaps ? " · overlapping" : ""})</span>
+                  )}
+                  <p data-current={index === localLines.length - 1}>{line.text}</p>
+                </div>
+              );
+            })}
           </div>
         ) : captionRows.length ? (
           <div className="theater-cues" aria-live="polite">

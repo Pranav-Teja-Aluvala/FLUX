@@ -45,6 +45,10 @@ await copyFile(
   resolve(root, "extension", "manifest.json"),
   resolve(dest, "manifest.json"),
 );
+const companionFiles = ["Install-Listening.ps1", "Launcher.cs", "host.py", "requirements.txt"];
+await mkdir(resolve(dest, "listening"), { recursive: true });
+for (const file of companionFiles)
+  await copyFile(resolve(root, "listening", file), resolve(dest, "listening", file));
 for (const icon of Object.values(manifest.icons)) {
   await copyFile(resolve(root, "extension", icon), resolve(dest, icon));
 }
