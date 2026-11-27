@@ -9,6 +9,7 @@
     "preview": "vite preview",
     "site:dev": "vite --config site/vite.config.ts",
     "site:build": "vite build --config site/vite.config.ts",
+    "site:preview-file": "vite build --config site/vite.file.config.ts",
     "desktop": "npm run build && electron desktop/main.cjs",
     "extension": "npm run build && node scripts/package-extension.mjs"
   },

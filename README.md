@@ -43,7 +43,7 @@ npm run site:build
 python scripts/archive-extension.py
 ```
 
-The unpacked Chrome extension builds to `dist-extension/`. The static site and its download build to `dist-pages/`. Run `npm run site:dev` for the landing page or `npm run desktop` for the Electron build.
+The unpacked Chrome extension builds to `dist-extension/`. The static site and its download build to `dist-pages/`. Run `npm run site:dev` for the landing page or `npm run desktop` for the Electron build. To open the landing page directly from disk with the interactive demo, run `npm run site:preview-file` and open `site/index.html`.
 
 React and TypeScript render the listening interface. Three.js renders Singularity and the live spectrum from Web Audio data. GSAP handles lyric follow, the landing page entrance, and demo scene transitions. Motion respects the system’s reduced-motion setting.
 

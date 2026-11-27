@@ -4,7 +4,6 @@ import { AudioEngine } from "../src/audio";
 import { defaults } from "../src/settings";
 import { mountGraphics } from "../src/graphics";
 import demo from "../public/phase-zero.wav?url";
-import "./style.css";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -25,6 +24,8 @@ try {
     albumColors: ["#5b84bb", "#baadf9", "#e5f2ff"],
   }), () => {});
   stage.dataset.ready = "true";
+  live.textContent = "Ready to play";
+  document.querySelector<HTMLElement>(".mode-buttons")!.hidden = false;
 } catch {
   live.textContent = "WebGL unavailable · audio demo available";
   modes.forEach((button) => { button.disabled = true; });
@@ -59,6 +60,8 @@ play.addEventListener("click", async () => {
     play.disabled = false;
   }
 });
+play.hidden = false;
+document.querySelector<HTMLElement>("#online-demo")!.hidden = true;
 
 for (const button of modes) {
   button.addEventListener("click", () => {

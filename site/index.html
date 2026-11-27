@@ -6,11 +6,12 @@
   <meta name="description" content="FLUX is a Chrome listening theater for YouTube, with audio-reactive art and lyrics that follow playback.">
   <meta name="theme-color" content="#050606">
   <link rel="icon" href="../public/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="./style.css">
   <title>FLUX — Music you can see</title>
 </head>
 <body>
   <header class="topbar wrap">
-    <a href="./" class="wordmark" aria-label="FLUX home">FLUX</a>
+    <a href="#demo" class="wordmark" aria-label="FLUX home">FLUX</a>
     <nav aria-label="Main">
       <a href="#demo">Demo</a>
       <a href="#extension">Extension</a>
@@ -21,10 +22,11 @@
     <section class="hero wrap" id="demo" aria-labelledby="hero-title">
       <div class="hero-copy">
         <p class="kicker">A listening theater for Chrome</p>
-        <h1 id="hero-title"><span>Music you</span><span>can see.</span></h1>
+        <h1 id="hero-title"><span>Music you</span> <span>can see.</span></h1>
         <p class="intro">Watch sound take shape. Follow lyrics through a YouTube track and let the artwork color the room.</p>
         <div class="hero-actions">
-          <button id="play-demo" class="pill primary" type="button" aria-pressed="false">Play demo <span aria-hidden="true">▶</span></button>
+          <a id="online-demo" class="pill primary" href="https://pranav-teja-aluvala.github.io/FLUX/#demo">Play demo online <span aria-hidden="true">↗</span></a>
+          <button id="play-demo" class="pill primary" type="button" aria-pressed="false" hidden>Play demo <span aria-hidden="true">▶</span></button>
           <a class="pill secondary" href="#downloads">Download FLUX <span aria-hidden="true">↓</span></a>
         </div>
       </div>
@@ -32,11 +34,11 @@
         <div class="instrument-stage">
           <canvas id="visualizer" aria-hidden="true"></canvas>
           <img class="stage-fallback" src="../public/scenes/singularity.webp" alt="" />
-          <span class="stage-label" id="demo-state" role="status">Ready to play</span>
+          <span class="stage-label" id="demo-state" role="status">Singularity preview</span>
         </div>
         <figcaption class="instrument-dock">
           <div class="demo-track"><strong>Phase Zero</strong><span>Original FLUX synth loop</span></div>
-          <div class="mode-buttons" role="group" aria-label="Visual scene">
+          <div class="mode-buttons" role="group" aria-label="Visual scene" hidden>
             <button type="button" data-scene="0" aria-pressed="true">Singularity</button>
             <button type="button" data-scene="5" aria-pressed="false">Spectrum</button>
           </div>
@@ -69,7 +71,7 @@
       <div class="download-list">
         <article>
           <div><h3>Chrome extension</h3><p>Unpacked extension for YouTube. Includes the optional Windows companion installer.</p></div>
-          <a class="pill primary" href="./downloads/FLUX-Chrome.zip" download>Download ZIP <span aria-hidden="true">↓</span></a>
+          <a id="chrome-download" class="pill primary" href="./downloads/FLUX-Chrome.zip" download>Download ZIP <span aria-hidden="true">↓</span></a>
         </article>
         <article>
           <div><h3>Windows desktop</h3><p>The portable desktop visualizer with system audio capture.</p></div>
@@ -86,7 +88,18 @@
       </details>
     </section>
   </main>
-  <footer class="site-footer wrap"><a href="./" class="wordmark">FLUX</a><a href="https://github.com/Pranav-Teja-Aluvala/FLUX">Source on GitHub ↗</a></footer>
-  <script type="module" src="./main.ts"></script>
+  <footer class="site-footer wrap"><a href="#demo" class="wordmark">FLUX</a><a href="https://github.com/Pranav-Teja-Aluvala/FLUX">Source on GitHub ↗</a></footer>
+  <script>
+    if (location.protocol === "file:") {
+      document.querySelector("#chrome-download").href =
+        "https://pranav-teja-aluvala.github.io/FLUX/downloads/FLUX-Chrome.zip";
+      const demo = document.createElement("script");
+      demo.src = "./.local-preview/flux.js";
+      document.body.append(demo);
+    }
+  </script>
+  <script type="module">
+    if (location.protocol !== "file:") import("./main.ts");
+  </script>
 </body>
 </html>
