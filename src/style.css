@@ -557,7 +557,7 @@ input[type="checkbox"] {
       220px,
       1fr
     );
-  grid-template-areas: "lyrics stage media";
+  grid-template-areas: "media stage lyrics";
   grid-template-rows: minmax(0, 1fr);
   padding: 12px;
   gap: 12px;
@@ -824,7 +824,7 @@ input[type="checkbox"] {
   .workspace {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     grid-template-rows: minmax(320px, 57svh) auto;
-    grid-template-areas: "stage stage" "lyrics media";
+    grid-template-areas: "stage stage" "media lyrics";
   }
   .stage {
     min-height: 0;

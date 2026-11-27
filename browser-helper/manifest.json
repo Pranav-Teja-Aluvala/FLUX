@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "FLUX YouTube Link",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Links a YouTube tab to FLUX for player framing, captions, and chapter timing.",
   "permissions": ["activeTab", "scripting", "storage"],
   "action": {
@@ -13,5 +13,6 @@
   "externally_connectable": {
     "matches": ["https://pranav-teja-aluvala.github.io/FLUX/*"]
   },
-  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAsNrXnrz2vMMVT+ako/vUG45+4d1+p3DJA7Ja5szVF3RiEt5hyIE3EhncdUz2BgEF7YlkLagJJvAafQkoQusWsx0XvudxM3eQs4H7RHoI7mFuy6ECaAyEnNqQXOywq1ghqnXxli0sZo8fjd7Tevlw/A0600RHwQnxuTq43F7nXWlHYyoH6RSTVFvjRCx00D7a4RTXyX2k7yc/4cj6afzXRYjl5dGucQ6IKKDmGhzc4PGeAfAENA76nQhNtLBzusgPzxJjaQ4DF8XCz9AMW+72ZG7u/nZ7doBrKDyjDAr7s9shNmdhtSmDs8+sBOm9YPklCEfgWCjkIgyXnnPwIdYmrQIDAQAB"
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAsNrXnrz2vMMVT+ako/vUG45+4d1+p3DJA7Ja5szVF3RiEt5hyIE3EhncdUz2BgEF7YlkLagJJvAafQkoQusWsx0XvudxM3eQs4H7RHoI7mFuy6ECaAyEnNqQXOywq1ghqnXxli0sZo8fjd7Tevlw/A0600RHwQnxuTq43F7nXWlHYyoH6RSTVFvjRCx00D7a4RTXyX2k7yc/4cj6afzXRYjl5dGucQ6IKKDmGhzc4PGeAfAENA76nQhNtLBzusgPzxJjaQ4DF8XCz9AMW+72ZG7u/nZ7doBrKDyjDAr7s9shNmdhtSmDs8+sBOm9YPklCEfgWCjkIgyXnnPwIdYmrQIDAQAB",
+  "host_permissions": ["http://127.0.0.1/*"]
 }

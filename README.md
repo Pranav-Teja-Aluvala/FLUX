@@ -6,7 +6,7 @@ FLUX is a browser instrument for turning sound into real-time WebGL environments
 
 ## Listening view
 
-**Desktop audio** starts the listening view. While audio plays, FLUX shows Singularity, the current lyrics when available, and a cropped live video frame or album cover. Press **Escape** or double-click the middle of the screen to bring the controls back. Chromatic remains alongside Singularity in the controls.
+**Desktop audio** starts the listening view. While audio plays, FLUX shows the cropped video or cover on the left, Singularity in the middle, and current lyrics on the right. Press **Escape** or double-click the middle of the screen to bring the controls back. Chromatic remains alongside Singularity in the controls.
 
 The Windows app captures system audio without a Chrome sharing banner. The browser edition uses Chrome's sharing picker and indicator. Choose the music tab so FLUX can frame the video. With the YouTube Link helper, FLUX crops at the player's edges and follows track changes using YouTube chapters or captions. Without it, FLUX can find centered artwork in many dark videos and still use it for color sampling.
 
@@ -16,7 +16,9 @@ On Windows or a linked YouTube tab, FLUX uses a matching title and duration, wit
 
 Download and extract the helper from the latest release. In Chrome, open `chrome://extensions`, enable **Developer mode**, and choose **Load unpacked**. Select the extracted `browser-helper` folder. In YouTube, click the extension icon once to link that tab. Return to the FLUX website, select **Desktop audio**, and share that tab with audio. The helper follows chapter changes while the same tab stays linked.
 
-The helper reads only the YouTube tab you explicitly link. FLUX uses LRCLIB for timed-lyrics matches, which sends song and artist text to that service. Audio, video, and pixel colors stay local.
+The helper reads only the YouTube tab you explicitly link. In Windows FLUX you can use that same link without sharing anything in Chrome: stop any existing Chrome share, play the linked tab, and press **Desktop audio** in the Windows app. The helper sends the current chapter, captions if available, and the actual player position over a loopback connection. FLUX follows pauses, seeks, and chapter changes using that clock. Chrome's sharing banner belongs to the web capture path.
+
+FLUX uses LRCLIB for timed-lyrics matches, which sends song and artist text to that service. Audio, video, and pixel colors stay local. A compilation with no usable chapters, track metadata, or captions cannot reliably supply synced lyrics.
 
 ## Development
 

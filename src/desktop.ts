@@ -11,6 +11,7 @@ export type Track = {
   rate?: number;
   crop?: Crop | null;
   caption?: string;
+  linked?: boolean;
 };
 declare global {
   interface Window {

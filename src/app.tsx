@@ -137,15 +137,12 @@ function App() {
             ? prior
             : result.track,
         );
-        if (result.error) {
-          setError(result.error);
-          return;
-        }
+        if (result.error && !result.track) setError(result.error);
       } catch (e) {
         if (!stopped) setError(message(e));
         return;
       }
-      timer = window.setTimeout(poll, 1600);
+      timer = window.setTimeout(poll, 450);
     }
     void poll();
     return () => {

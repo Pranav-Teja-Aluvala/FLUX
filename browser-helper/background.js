@@ -10,6 +10,10 @@ function youtube(url) {
 chrome.action.onClicked.addListener(async (tab) => {
   if (!youtube(tab.url)) return;
   await chrome.storage.session.set({ tabId: tab.id });
+  await chrome.scripting.executeScript({
+    target: { tabId: tab.id },
+    files: ["link.js"],
+  });
   await chrome.action.setBadgeText({ tabId: tab.id, text: "ON" });
   await chrome.action.setBadgeBackgroundColor({
     tabId: tab.id,
@@ -17,29 +21,65 @@ chrome.action.onClicked.addListener(async (tab) => {
   });
 });
 
+chrome.tabs.onUpdated.addListener((tabId, change, tab) => {
+  if (change.status !== "complete" || !youtube(tab.url)) return;
+  void chrome.storage.session
+    .get("tabId")
+    .then((value) => {
+      if (value.tabId === tabId)
+        return chrome.scripting.executeScript({
+          target: { tabId },
+          files: ["link.js"],
+        });
+    })
+    .catch(() => {});
+});
+
+async function snapshot(tabId) {
+  const tab = await chrome.tabs.get(tabId);
+  if (!youtube(tab.url)) return null;
+  const [row] = await chrome.scripting.executeScript({
+    target: { tabId },
+    world: "MAIN",
+    func: readPlayer,
+  });
+  return row?.result ?? null;
+}
 chrome.runtime.onMessageExternal.addListener((message, sender, reply) => {
   if (
     message?.type !== "flux:read-player" ||
     !sender.url?.startsWith("https://pranav-teja-aluvala.github.io/FLUX/")
   )
     return false;
-  void (async () => {
-    const { tabId } = await chrome.storage.session.get("tabId");
-    if (typeof tabId !== "number") return null;
-    const tab = await chrome.tabs.get(tabId);
-    if (!youtube(tab.url)) return null;
-    const [row] = await chrome.scripting.executeScript({
-      target: { tabId },
-      world: "MAIN",
-      func: readPlayer,
-    });
-    return row?.result ?? null;
-  })().then(reply, () => reply(null));
+  void chrome.storage.session
+    .get("tabId")
+    .then(({ tabId }) => (typeof tabId === "number" ? snapshot(tabId) : null))
+    .then(reply, () => reply(null));
   return true;
 });
-
+chrome.runtime.onMessage.addListener((message, sender, reply) => {
+  if (
+    message?.type !== "flux:push-player" ||
+    !sender.tab?.id ||
+    !youtube(sender.url)
+  )
+    return false;
+  void (async () => {
+    const { tabId } = await chrome.storage.session.get("tabId");
+    if (sender.tab.id !== tabId) return false;
+    const item = await snapshot(tabId);
+    if (item)
+      await fetch("http://127.0.0.1:38147/player", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(item),
+      }).catch(() => {});
+    return true;
+  })().then(reply, () => reply(true));
+  return true;
+});
 function readPlayer() {
-  const player = document.querySelector("#movie_player");
+  const player = document.querySelector("#movie_player, ytmusic-player");
   const video = player?.querySelector("video");
   if (
     !video ||
@@ -125,10 +165,18 @@ function readPlayer() {
     (chapter || activeChapter
       ? ""
       : navigator.mediaSession.metadata?.artist || channel);
-  const caption = [...player.querySelectorAll(".ytp-caption-segment")]
-    .map((el) => el.textContent)
+  const cueText = [...video.textTracks]
+    .flatMap((track) =>
+      [...(track.activeCues ?? [])].map((cue) => cue.text ?? ""),
+    )
     .join(" ")
     .trim();
+  const caption =
+    cueText ||
+    [...player.querySelectorAll(".ytp-caption-segment")]
+      .map((el) => el.textContent)
+      .join(" ")
+      .trim();
   const start = chapter?.start ?? 0;
   return {
     title: pair?.[2] || name,

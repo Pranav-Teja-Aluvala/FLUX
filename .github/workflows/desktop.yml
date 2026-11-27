@@ -28,7 +28,7 @@ jobs:
           Copy-Item (Split-Path $runtime) FLUX -Recurse
           Rename-Item FLUX/electron.exe FLUX.exe
           $app = New-Item -ItemType Directory -Path FLUX/resources/app
-          Copy-Item dist,desktop,LICENSE -Destination $app.FullName -Recurse
+          Copy-Item dist,desktop,browser-helper,LICENSE -Destination $app.FullName -Recurse
           $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
           @{name='flux';version=$version;main='desktop/main.cjs'} | ConvertTo-Json | Set-Content "$($app.FullName)/package.json"
           Compress-Archive FLUX FLUX-Windows-x64.zip -CompressionLevel Fastest

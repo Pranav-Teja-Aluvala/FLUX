@@ -8,6 +8,8 @@ const {
 const { spawn } = require("node:child_process");
 const { createInterface } = require("node:readline");
 const path = require("node:path");
+const { createYouTubeLink } = require("./youtube-link.cjs");
+let youtubeLink;
 const { pickCaptureSource } = require("./source.cjs");
 
 let reader;
@@ -16,6 +18,7 @@ let readerError = "";
 let firstSample;
 let previewKind;
 function stopReader() {
+  youtubeLink?.disable();
   reader?.kill();
   reader = undefined;
   current = null;
@@ -25,6 +28,7 @@ function stopReader() {
 }
 
 app.whenReady().then(async () => {
+  if (process.platform === "win32") youtubeLink = createYouTubeLink();
   const window = new BrowserWindow({
     title: "FLUX",
     width: 1440,
@@ -70,6 +74,7 @@ app.whenReady().then(async () => {
       return respond({});
     try {
       startReader();
+      youtubeLink?.enable();
       if (!captureId && firstSample) {
         let timer;
         try {
@@ -152,7 +157,12 @@ app.whenReady().then(async () => {
     if (event.sender !== content || process.platform !== "win32")
       return { track: null };
     startReader();
-    return { track: current, error: readerError, previewKind };
+    const linked = youtubeLink?.latest();
+    return {
+      track: linked ?? current,
+      error: linked ? "" : readerError,
+      previewKind,
+    };
   });
   ipcMain.on("flux:stop-reading", (event) => {
     if (event.sender === content) stopReader();
@@ -160,4 +170,5 @@ app.whenReady().then(async () => {
   window.on("closed", stopReader);
   await window.loadFile(path.join(__dirname, "../dist/index.html"));
 });
+app.on("before-quit", () => youtubeLink?.close());
 app.on("window-all-closed", () => app.quit());

@@ -69,3 +69,28 @@ test("automatic matching with a missing artist needs an unambiguous title and du
     undefined,
   );
 });
+
+const { decodeLink } = createRequire(import.meta.url)(
+  "../desktop/youtube-link.cjs",
+);
+test("YouTube Link rejects stale clocks and keeps the received seek position", () => {
+  const now = 10000;
+  const song = {
+    title: "Track",
+    artist: "Artist",
+    caption: "Cue",
+    position: 17,
+    duration: 50,
+    playing: false,
+    sampledAt: now,
+    rate: 1.5,
+    crop: { x: 0, y: 0, w: 1, h: 1 },
+  };
+  const sample = decodeLink(song, now);
+  assert.equal(sample.position, 17);
+  assert.equal(sample.playing, false);
+  assert.equal(sample.rate, 1.5);
+  assert.equal(sample.crop, undefined);
+  assert.equal(decodeLink({ ...song, sampledAt: 0 }, now), null);
+  assert.equal(decodeLink({ ...song, position: 80 }, now), null);
+});
