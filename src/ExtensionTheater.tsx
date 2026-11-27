@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import type { Track } from "./desktop";
 import {
@@ -8,7 +8,11 @@ import {
   findLyrics,
   parseLrc,
   type Line,
+  type LyricsMatch,
 } from "./lyrics";
+import {
+  captionFragment, cueParts, matchCaptionLyrics, shortCaption, songCandidates,
+} from "./caption-lyrics";
 import { controlYouTube } from "./media-preview";
 import type { LocalListening, VoiceMode } from "./local-listening";
 
@@ -44,13 +48,18 @@ export function ExtensionTheater({
   voiceMode: VoiceMode;
   setVoiceMode: (mode: VoiceMode) => void;
 }) {
-  const [lines, setLines] = useState<Line[]>([]),
+  const [exactLines, setLines] = useState<Line[]>([]),
     [looking, setLooking] = useState(false),
     [position, setPosition] = useState(0);
   const [commandError, setCommandError] = useState("");
   const [lookupFailed, setLookupFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const [captionRows, setCaptionRows] = useState<string[]>([]);
+  const [observations, setObservations] = useState<{ time: number; text: string }[]>([]);
+  const [candidates, setCandidates] = useState<LyricsMatch[]>([]);
+  const [lookupComplete, setLookupComplete] = useState(false);
+  const lastCue = useRef("");
+  const lastYouTubeCue = useRef("");
   const scroll = useRef<HTMLDivElement>(null),
     highlight = useRef<HTMLButtonElement>(null);
   const clockRef = useRef(clock);
@@ -59,9 +68,24 @@ export function ExtensionTheater({
     artist = track?.artist ?? "",
     duration = Math.round(track?.duration ?? 0);
   const cue = track?.caption || caption;
+  const nativeCue = track?.captionCue;
+  const cueStart = nativeCue?.start;
+  const samplePosition = track?.position;
+  const youtubeCaption = track?.caption;
+  const hasObservations = observations.length > 0;
+  const captionMatch = useMemo(
+    () => matchCaptionLyrics(candidates, observations, duration),
+    [candidates, observations, duration],
+  );
+  const activeMatch = captionMatch && position >= captionMatch.from - 2 && position <= captionMatch.until + 4
+    ? captionMatch : undefined;
+  const lines = exactLines.length ? exactLines : activeMatch?.lines ?? exactLines;
+  const identified = !exactLines.length ? activeMatch?.recording : undefined;
   const index = currentLine(lines, position);
   const localLines = analysis.result?.lines.slice(-3) ?? [];
   const showSynced = lines.length > 0 && !(voiceMode > 1 && localLines.length);
+  const timedParts = nativeCue && position >= nativeCue.start && position < nativeCue.end
+    ? cueParts(nativeCue) : [];
   const lyricHeading = showSynced
     ? "Lyrics"
     : localLines.length
@@ -69,6 +93,7 @@ export function ExtensionTheater({
       : captionRows.length ? "Live captions" : "Lyrics";
   useEffect(() => {
     setLines([]);
+    setLookupComplete(false);
     setLooking(false);
     setLookupFailed(false);
     if (!title || !duration) return;
@@ -86,10 +111,56 @@ export function ExtensionTheater({
         },
       )
       .finally(() => {
-        if (!request.signal.aborted) setLooking(false);
+        if (!request.signal.aborted) {
+          setLooking(false);
+          setLookupComplete(true);
+        }
       });
     return () => request.abort();
   }, [title, artist, duration, attempt]);
+  useEffect(() => {
+    if (lookupComplete && !exactLines.length && !hasObservations && track?.videoId)
+      void controlYouTube("flux:enable-player-captions");
+  }, [lookupComplete, exactLines.length, hasObservations, track?.videoId]);
+  useEffect(() => {
+    setCandidates([]);
+    if (!title || !lookupComplete || !hasObservations || exactLines.length) return;
+    const request = new AbortController();
+    const hints = songCandidates(title);
+    if (!hints.length && artist) hints.push(title);
+    void (async () => {
+      const results = new Map<number, LyricsMatch>();
+      for (const [index, hint] of hints.entries()) {
+        if (index) await new Promise((resolve) => setTimeout(resolve, 300));
+        if (request.signal.aborted) return;
+        try {
+          for (const result of await findLyrics(hint, "", request.signal)) {
+            results.set(result.id, result);
+          }
+        } catch {
+          break;
+        }
+        if (request.signal.aborted) return;
+        setCandidates([...results.values()]);
+      }
+    })();
+    return () => request.abort();
+  }, [title, artist, lookupComplete, hasObservations, exactLines.length]);
+  useEffect(() => {
+    if (!youtubeCaption) {
+      lastYouTubeCue.current = "";
+      return;
+    }
+    if (lastYouTubeCue.current === youtubeCaption || samplePosition === undefined) return;
+    const fragment = cueStart === undefined
+      ? captionFragment(lastYouTubeCue.current, youtubeCaption)
+      : youtubeCaption;
+    lastYouTubeCue.current = youtubeCaption;
+    if (fragment && youtubeCaption.split(/\s+/).length >= 4)
+      setObservations((previous) => [...previous.slice(-11), {
+        time: cueStart ?? samplePosition, text: youtubeCaption,
+      }]);
+  }, [youtubeCaption, cueStart, samplePosition]);
   useEffect(() => {
     const tick = () => setPosition(clockRef.current());
     tick();
@@ -109,15 +180,19 @@ export function ExtensionTheater({
   }, [index, lines, showSynced]);
   useEffect(() => {
     if (!cue) {
-      const expire = window.setTimeout(() => setCaptionRows([]), 2800);
+      const expire = window.setTimeout(() => {
+        lastCue.current = "";
+        setCaptionRows([]);
+      }, 2800);
       return () => clearTimeout(expire);
     }
+    const fresh = shortCaption(captionFragment(lastCue.current, cue));
+    lastCue.current = cue;
+    if (!fresh) return;
     setCaptionRows((previous) => {
       const latest = previous.at(-1);
-      if (latest === cue) return previous;
-      return latest && (cue.startsWith(latest) || latest.startsWith(cue))
-        ? [...previous.slice(0, -1), cue]
-        : [...previous.slice(-2), cue];
+      if (latest === fresh) return previous;
+      return [...previous.slice(-1), fresh];
     });
   }, [cue]);
   async function seek(time: number) {
@@ -250,6 +325,14 @@ export function ExtensionTheater({
               );
             })}
           </div>
+        ) : timedParts.length > 1 ? (
+          <div className="theater-cues" aria-live="off">
+            <p data-current="true">
+              {timedParts.map((part, index) => (
+                <span key={index} data-spoken={part.time <= position}>{part.text}</span>
+              ))}
+            </p>
+          </div>
         ) : captionRows.length ? (
           <div className="theater-cues" aria-live="polite">
             {captionRows.map((line, i) => (
@@ -288,8 +371,8 @@ export function ExtensionTheater({
         <div className="theater-track">
           {thumbnail && <img src={thumbnail} alt="" />}
           <div>
-            <strong>{title || "YouTube"}</strong>
-            {artist && <span>{artist}</span>}
+            <strong>{identified?.trackName ?? (title || "YouTube")}</strong>
+            {(identified?.artistName || artist) && <span>{identified?.artistName || artist}</span>}
           </div>
         </div>
         {track && (

@@ -61,6 +61,7 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
   if (
     ![
       "flux:read-player",
+      "flux:enable-player-captions",
       "flux:start-capture",
       "flux:toggle-play",
       "flux:seek-line",
@@ -87,6 +88,26 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
         func: readPlayer,
       });
       return sample?.result ?? null;
+    }
+    if (message.type === "flux:enable-player-captions") {
+      const [result] = await chrome.scripting.executeScript({
+        target: { tabId: id },
+        world: "MAIN",
+        func: () => {
+          const player = document.querySelector("#movie_player, ytmusic-player");
+          if (!player || player.classList.contains("ad-showing")) return false;
+          const button = player.querySelector('.ytp-subtitles-button[aria-pressed="false"]');
+          if (button && !button.disabled && button.getClientRects().length) {
+            button.click();
+            return true;
+          }
+          const track = [...(player.querySelector("video")?.textTracks ?? [])]
+            .find((track) => track.kind === "captions" || track.kind === "subtitles");
+          if (track?.mode === "disabled") track.mode = "hidden";
+          return !!track;
+        },
+      });
+      return { ok: result?.result === true };
     }
     if (
       message.type === "flux:toggle-play" ||

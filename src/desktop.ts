@@ -1,4 +1,5 @@
 import type { Crop } from "./media-preview";
+import type { CaptionCue } from "./caption-lyrics";
 export type Track = {
   title: string;
   artist: string;
@@ -12,6 +13,7 @@ export type Track = {
   rate?: number;
   crop?: Crop | null;
   caption?: string;
+  captionCue?: CaptionCue;
   linked?: boolean;
   videoId?: string;
   chapterStart?: number;

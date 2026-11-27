@@ -95,18 +95,17 @@ function readPlayer() {
   const artist =
     pair?.[1] ||
     (chapter ? "" : metadata?.artist || details?.author || channel);
-  const cueText = Array.from(video.textTracks ?? [])
-    .flatMap((track) =>
-      Array.from(track.activeCues ?? []).map((cue) => cue.text ?? ""),
-    )
-    .join(" ")
-    .trim();
+  const activeCue = Array.from(video.textTracks ?? [])
+    .filter((track) => track.kind === "captions" || track.kind === "subtitles")
+    .flatMap((track) => Array.from(track.activeCues ?? []))
+    .findLast((cue) => typeof cue.text === "string" && cue.text.trim());
   const caption =
-    cueText ||
+    activeCue?.text.replace(/<[^>]*>/g, "") ||
     [...player.querySelectorAll(".ytp-caption-segment")]
       .map((el) => el.textContent)
       .join(" ")
-      .trim();
+      .trim()
+      .slice(-500);
   const start = chapter?.start ?? 0;
   return {
     title: pair?.[2] || name,
@@ -123,5 +122,10 @@ function readPlayer() {
     rate: video.playbackRate,
     crop,
     caption,
+    captionCue: activeCue && {
+      start: activeCue.startTime - start,
+      end: activeCue.endTime - start,
+      text: activeCue.text.slice(0, 1200),
+    },
   };
 }

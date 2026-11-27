@@ -1444,6 +1444,21 @@ input[type="checkbox"] {
   align-self: center;
   padding-block: clamp(52px, 11vh, 135px);
 }
+.theater-cues {
+  min-height: 0;
+  max-height: 100%;
+  overflow: hidden;
+  padding-block: 12px;
+}
+.theater-cues p {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+}
+.theater-cues span[data-spoken="false"] {
+  opacity: 0.48;
+}
 .theater-cues p {
   font-size: clamp(23px, 3vw, 52px);
   font-weight: 720;

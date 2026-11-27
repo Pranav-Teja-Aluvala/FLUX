@@ -10,6 +10,8 @@ The extension opens a lyrics-first theater with the video thumbnail as its backd
 
 FLUX removes YouTube upload labels such as “Official Video” before looking up the recording on LRCLIB. It keeps alternate-version labels and checks the duration before displaying timed lyrics. Use **Retry lyrics** if the service is temporarily unavailable. When a recording has no match, FLUX can use the player’s captions or on-device captioning on supported Chrome setups.
 
+If the first lookup misses, FLUX reads YouTube captions when available and checks likely songs from the upload title against LRCLIB. Matching phrases provide timing anchors for an edited or slowed upload. FLUX shows synced lyrics within the confirmed section and uses compact captions elsewhere. Word highlighting uses the caption track’s timestamps when present. Caption text stays on the device.
+
 ### Local vocal separation on Windows
 
 For a new installation, run the packaged `listening/Install-Listening.ps1` with 64-bit Python 3.10–3.13 installed. It registers the native host for that unpacked FLUX folder. Pass `-PrepareModels` to download and load the weights during setup, or let FLUX download them when used. The downloads require roughly 1 GB of disk space for model weights in addition to Python dependencies and caches.
