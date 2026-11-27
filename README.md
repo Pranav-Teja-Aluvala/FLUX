@@ -1,72 +1,50 @@
-# FLUX — Music you can see
+# FLUX
 
-FLUX is a browser instrument for turning sound into real-time WebGL environments. Open a local track, enable the microphone, or play **Phase Zero**, the included original synth loop.
+**Music you can see.** FLUX turns a YouTube tab into a listening theater. Singularity responds to the captured audio, the video artwork colors the room, and lyrics follow the playback clock.
 
-## Standalone Chrome extension
+[**Try the live demo**](https://pranav-teja-aluvala.github.io/FLUX/#demo) · [**Download for Chrome**](https://pranav-teja-aluvala.github.io/FLUX/downloads/FLUX-Chrome.zip) · [**Windows x64**](https://github.com/Pranav-Teja-Aluvala/FLUX/releases/download/v1.4.3/FLUX-Windows-x64.zip)
 
-Build the extension with `npm ci` and `npm run extension`, or use the supplied prebuilt folder. Open `chrome://extensions`, enable **Developer mode**, then choose **Load unpacked** and select the folder containing `manifest.json`. On a YouTube video, click **FLUX** in the toolbar. FLUX opens its own tab and plays the captured audio there. Closing FLUX releases the capture and restores playback to the source tab. If the source closes or leaves YouTube, FLUX ends the session. Open a YouTube video and click **FLUX** again to connect it.
+![FLUX rendering Singularity and synced lyrics in Chrome](site/media/listening.webp)
 
-The extension opens a lyrics-first theater with the video thumbnail as its backdrop and Singularity colored by the artwork. The compact footer shows the track, progress, and playback controls. The linked tab supplies audio, track metadata, timing, and available captions. Click a timed lyric to seek the source. **←** and **→** skip backward and forward five seconds. **Space** toggles playback and **F** switches fullscreen.
+## Tour
 
-FLUX removes YouTube upload labels such as “Official Video” before looking up the recording on LRCLIB. It keeps alternate-version labels and checks the duration before displaying timed lyrics. Use **Retry lyrics** if the service is temporarily unavailable. When a recording has no match, FLUX can use the player’s captions or on-device captioning on supported Chrome setups.
+| Browse lyrics at your own pace | The listening view on a narrow screen |
+| --- | --- |
+| ![A Chrome playback test showing Follow lyrics after scrolling away from the current line](site/media/browse.webp) | <img src="site/media/mobile.webp" alt="Lyrics and playback controls in the narrow listening layout" width="220"> |
 
-If the first lookup misses, FLUX reads YouTube captions when available and checks likely songs from the upload title against LRCLIB. Matching phrases provide timing anchors for an edited or slowed upload. FLUX shows synced lyrics within the confirmed section and uses compact captions elsewhere. Word highlighting uses the caption track’s timestamps when present. Caption text stays on the device.
+These screenshots were captured in Chrome with a controlled track, original fixture lyrics, and actual tab audio capture.
 
-### Local vocal separation on Windows
+- **Follow playback.** The current line eases into view. Scroll to browse, click a lyric to seek, or select **Follow lyrics** to return to the current line.
+- **Keep reading on edits.** FLUX matches exact recordings against [LRCLIB](https://lrclib.net/). When the first lookup misses, it can compare likely songs with YouTube captions and align a confirmed section. Caption tracks with word timings highlight words as they arrive.
+- **Listen locally.** The optional Windows companion uses Hybrid Demucs, Whisper, and SepFormer to separate voices and transcribe English audio. Audio processing stays on the device.
 
-For a new installation, run the packaged `listening/Install-Listening.ps1` with 64-bit Python 3.10–3.13 installed. It registers the native host for that unpacked FLUX folder. Pass `-PrepareModels` to download and load the weights during setup, or let FLUX download them when used. The downloads require roughly 1 GB of disk space for model weights in addition to Python dependencies and caches.
+## Install the Chrome extension
 
-In the listening tab, open **Audio analysis** and select **Vocals and backing** or one of the overlapping-speaker modes. [Hybrid Demucs](https://docs.pytorch.org/audio/main/generated/torchaudio.pipelines.HDEMUCS_HIGH_MUSDB_PLUS.html) separates the backing and vocal stems. [Whisper Base](https://huggingface.co/Systran/faster-whisper-base) transcribes English vocals locally. The two- and three-speaker modes use [SepFormer WHAMR](https://huggingface.co/speechbrain/sepformer-whamr) and [SepFormer WSJ0-3Mix](https://huggingface.co/speechbrain/sepformer-wsj03mix) for overlapping speech. Voice numbers identify estimated sources within each audio window.
+1. Download and extract [FLUX-Chrome.zip](https://pranav-teja-aluvala.github.io/FLUX/downloads/FLUX-Chrome.zip).
+2. Open `chrome://extensions`, enable **Developer mode**, and choose **Load unpacked**. Select the folder containing `manifest.json`.
+3. Play a video on YouTube, then click the FLUX toolbar icon.
 
-Audio stays in local memory and reaches the companion through Chrome native messaging. Results arrive after each five-second sample plus processing time. A busy companion skips samples to avoid building up a delay. The speech models are best suited to conversation and can miss sung words or voices in dense mixes. Song lookup still uses YouTube metadata and matching LRCLIB records.
+| Control | Action |
+| --- | --- |
+| Space | Play or pause the linked video |
+| ← / → | Skip five seconds |
+| F | Toggle fullscreen |
+| Follow lyrics | Resume automatic lyric scrolling |
 
-For an existing unpacked installation, refresh the same folder through Chrome’s extension page and accept the thumbnail host permission.
+For the Windows listening companion, run `listening/Install-Listening.ps1` from the extracted folder using 64-bit Python 3.10–3.13. The optional `-PrepareModels` flag fetches the model weights during setup. In FLUX, enable it under **Audio analysis**. Results arrive after each five-second sample plus processing time, and dense mixes may produce inaccurate words.
 
-[Browser and Windows versions are documented below.](#listening-view)
+## Build and test
 
-## Listening view
-
-**Desktop audio** starts the listening view. FLUX shows the cropped video or cover on the left, Singularity in the middle, and current lyrics on the right. Press **Escape** or use **Show controls** to return to the dock.
-
-- **Chrome** uses FLUX YouTube Link to capture the linked tab. This uses Chrome's extension tab capture, without the screen-sharing banner. Chrome keeps its tab capture indicator. If you have an existing screen share from an older version, stop that share before using Desktop audio.
-- **Windows** uses Windows system audio capture, and the same helper can provide the linked tab's song, chapter, and playback position.
-
-### YouTube Link for Chrome
-
-Download and extract **FLUX-YouTube-Link.zip** from the latest release. In Chrome, open `chrome://extensions`, enable **Developer mode**, and select **Load unpacked** with the extracted `browser-helper` folder. If you already installed it, replace the old folder contents, reload the extension, and approve its new tab-capture permission. Click the helper icon on the music tab once, then select **Desktop audio** in FLUX. The helper follows the linked tab as it plays, pauses, seeks, or changes tracks.
-
-FLUX first uses the matching timed lyrics from LRCLIB. If those are unavailable, it displays captions from the linked YouTube player or on-device speech recognition, when supported. The first on-device session might require an English language pack. Select **Enable on-device captions** if prompted. These generated captions can mishear sung words, particularly over loud instruments. Audio and video stay on your device. Only song metadata is sent to the lyrics lookup.
-
-## Development
-
-Requires Node 22.12+ (or Node 24).
-
-~~~sh
+```sh
 npm ci
-npm run dev
 npm test
-npm run build
-~~~
+npm run extension
+npm run site:build
+python scripts/archive-extension.py
+```
 
-React and TypeScript handle the studio controls. Three.js and GLSL render outside React's render cycle. The audio engine reuses FFT and waveform buffers, estimates beat onsets from a rolling bass baseline, and never routes the microphone to the speakers. The graphics chunk loads on demand and reduces pixel ratio and point count when frame rate drops. Audio and presets are processed locally. Serve the build over HTTPS for microphone input.
+The unpacked Chrome extension builds to `dist-extension/`. The static site and its download build to `dist-pages/`. Run `npm run site:dev` for the landing page or `npm run desktop` for the Electron build.
 
-Beat detection is approximate. Capture formats depend on browser codecs. Reduced motion freezes automatic camera and procedural travel while preserving the connection to live sound. There is no requirement to upload audio or sign in.
+React and TypeScript render the listening interface. Three.js renders Singularity and the live spectrum from Web Audio data. GSAP handles lyric follow, the landing page entrance, and demo scene transitions. Motion respects the system’s reduced-motion setting.
 
-To regenerate the original demo, run the Python standard-library script from the repository root.
-
-~~~sh
-python generate-demo.py
-~~~
-
-## Windows desktop mode
-
-Use this mode for FLUX to read the current Windows media session and follow its album artwork. Windows 10 version 1809 or later (or Windows 11) and an up-to-date Node installation are required.
-
-~~~sh
-npm ci
-npm run desktop
-~~~
-
-Play music in your usual player, then select **Desktop audio**. The first launch downloads the Electron runtime. FLUX reads metadata and artwork from the active Windows media session, with audio captured from Windows loopback. Audio from other apps using the same output can also affect the visualization. Use **Stop desktop** to stop capture and metadata polling. Turn off **Use image colors** in Studio to keep your chosen palette.
-
-Players decide what they publish to Windows. When a player provides a title but no cover, FLUX displays the title and uses the selected scene palette. The hosted browser build captures a linked YouTube tab through the helper. Windows song detection and cover colors are available in the Windows app.
+[ISC license](LICENSE)

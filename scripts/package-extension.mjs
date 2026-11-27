@@ -31,7 +31,6 @@ for (const old of await readdir(assets, { withFileTypes: true })) {
 }
 await cp(build, dest, {
   recursive: true,
-  filter: (path) => !path.endsWith("studio.png"),
 });
 await copyFile(
   resolve(root, "extension", "background.js"),

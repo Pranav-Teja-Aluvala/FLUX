@@ -24,9 +24,11 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm test
-      - run: npm run build
+      - run: npm run extension
+      - run: npm run site:build
+      - run: python scripts/archive-extension.py
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: dist
+          path: dist-pages
       - uses: actions/deploy-pages@v4
         id: pages
