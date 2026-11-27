@@ -767,7 +767,7 @@ function App() {
   }
   const listening = (desktop || mic || playing) && (inExtension || !controls);
   const extensionIdle = inExtension && !(desktop || mic || playing);
-  const activeScene = listening ? 0 : scene;
+  const activeScene = listening && !inExtension ? 0 : scene;
   const current = scenes[activeScene];
   return (
     <div
@@ -888,7 +888,11 @@ function App() {
         {inExtension && desktop && (
           <ExtensionTheater
             scene={scene}
-            setScene={setScene}
+            setScene={(mode) => {
+              setScene(mode);
+              if (mode === 5 && audioBlocked)
+                void engine.activate().catch((e) => setError(message(e)));
+            }}
             key={listeningKey}
             track={playerTrack}
             clock={playbackClock}
@@ -928,11 +932,11 @@ function App() {
           aria-label="Audio-reactive environment"
           onDoubleClick={() => setControls(true)}
           onPointerMove={(event) => {
-            if (listening && event.pointerType === "mouse")
+            if (listening && !inExtension && event.pointerType === "mouse")
               revealControlsHint();
           }}
           onPointerDown={(event) => {
-            if (listening && event.pointerType !== "mouse")
+            if (listening && !inExtension && event.pointerType !== "mouse")
               revealControlsHint();
           }}
         >

@@ -130,6 +130,8 @@ button:disabled { cursor: default; opacity: .55; }
 .gallery-controls button { border: 1px solid #33466a34; border-radius: 999px; background: #fff8; color: #243653; padding: 8px 13px; min-height: 38px; }
 .gallery-controls button:hover { background: white; }
 .gallery-controls button:focus-visible { outline-color: #304c77; }
+.gallery-controls #gallery-spectrum { background: #172441; border-color: #172441; color: #f2f6ff; }
+.gallery-controls #gallery-spectrum:hover { background: #26385b; }
 .gallery-paging span { font-variant-numeric: tabular-nums; }
 .details { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: clamp(17px, 3vw, 52px); border-top: 1px solid #15284627; margin-top: 42px; padding-top: 25px; }
 .details h3, .download-list h3 { font-size: 19px; letter-spacing: -.025em; margin: 0 0 8px; }
@@ -154,6 +156,7 @@ button:disabled { cursor: default; opacity: .55; }
   .instrument { border-radius: 17px; }
   .instrument-dock { padding: 12px 9px; }
   .mode-buttons button { font-size: 10px; padding-inline: 6px; }
+  .gallery-controls { flex-wrap: wrap; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; }

@@ -36,7 +36,7 @@ const vertex = `
 
 const fragment = `
   uniform sampler2D history;
-  uniform float head, aspect, rotation;
+  uniform float head, aspect, rotation, pulse;
   varying vec2 point;
 
   vec3 frequencyColor(float f) {
@@ -59,14 +59,15 @@ const fragment = `
     float cs = cos(turn);
     vec2 lens = mat2(cs, -sn, sn, cs) * centered;
     lens.y /= .84 + abs(turn) * .08;
-    float radius = length(lens);
-    float age = clamp((radius - .34) / .47, 0., 1.);
     const float tau = 6.2831853;
     float polar = fract(atan(lens.y, lens.x) / tau + .75);
     // Mirror the band ordering so bass meets at the top and treble at the bottom.
+    float instantFrequency = 1. - abs(polar * 2. - 1.);
+    float fresh = field(instantFrequency, 0.);
+    float radius = length(lens) - pow(fresh, 1.3) * .077 - pulse * .035;
+    float age = clamp((radius - .34) / .47, 0., 1.);
     float frequency = 1. - abs(fract(polar + age * .1) * 2. - 1.);
     float signal = field(frequency, age);
-    float fresh = field(frequency, 0.);
     float inside = smoothstep(.325, .365, radius);
     float outside = 1. - smoothstep(.65, .85, radius);
     float intensity = pow(signal, 1.48) * inside * outside;
@@ -84,7 +85,7 @@ const fragment = `
     color += ink * intensity * (.89 + streak * .47) * textureLight;
     color += mix(ink, white, .54) * pow(signal, 3.5) * inside * outside * .7;
     color += ink * fringe * pow(fresh, 1.5) * .19;
-    color += mix(ink, white, .76) * edge * (.035 + fresh * .72);
+    color += mix(ink, white, .76) * edge * (.035 + fresh * .92);
     float outerRim = exp(-abs(radius - .816) * 175.);
     color += vec3(.039, .053, .089) * outerRim * (.30 + intensity);
     float grain = fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(.06711056, .00583715))));
@@ -105,6 +106,7 @@ export function createSpectrum() {
     head: { value: .5 / historyRows },
     aspect: { value: 1 },
     rotation: { value: 0 },
+    pulse: { value: 0 },
   };
   const geometry = new THREE.PlaneGeometry(2, 2);
   const material = new THREE.ShaderMaterial({ uniforms, vertexShader: vertex, fragmentShader: fragment });
@@ -132,7 +134,8 @@ export function createSpectrum() {
     for (let index = 0; index < spectrumCount; index++) {
       const gain = index < 9 ? bass : index < 24 ? mid : treble;
       const raw = spectrumValue(bins, hz, index);
-      const value = Math.min(1, Math.max(0, (raw - .15) / .85) * gain);
+      const level = Math.max(0, (raw - .07) / .93);
+      const value = Math.min(1, Math.pow(level, .82) * gain);
       const prior = levels[index];
       const response = 1 - Math.exp(-period * (value > prior ? 48 : 19));
       levels[index] += (value - prior) * response;
@@ -146,9 +149,10 @@ export function createSpectrum() {
     aperture,
     reset,
     sample,
-    view(aspect: number, rotation: number) {
+    view(aspect: number, rotation: number, pulse: number) {
       uniforms.aspect.value = aspect;
       uniforms.rotation.value = rotation;
+      uniforms.pulse.value = pulse;
     },
     dispose() {
       geometry.dispose();

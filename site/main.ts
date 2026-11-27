@@ -14,7 +14,7 @@ const engine = new AudioEngine();
 const settings = { ...defaults, camera: 0.22, density: 0.72 };
 const reduced = matchMedia("(prefers-reduced-motion: reduce)");
 let scene = 0;
-let changing = false;
+let transition: gsap.core.Timeline | undefined;
 let stageInView = true;
 const stageObserver = new IntersectionObserver(([entry]) => {
   stageInView = entry.isIntersecting;
@@ -42,15 +42,13 @@ function syncPlayback() {
   icon.textContent = playing ? "Ⅱ" : "▶";
   play.append(icon);
   play.setAttribute("aria-pressed", String(playing));
-  if (stage.dataset.ready) live.textContent = playing ? "Audio reactive" : "Ready to play";
+  if (stage.dataset.ready)
+    live.textContent = playing ? "Audio reactive" : scene === 5 ? "Press Play to animate Spectrum" : "Ready to play";
 }
 engine.media.addEventListener("play", syncPlayback);
 engine.media.addEventListener("pause", syncPlayback);
-play.addEventListener("click", async () => {
-  if (!engine.media.paused) {
-    engine.media.pause();
-    return;
-  }
+async function startDemo() {
+  if (play.disabled || !engine.media.paused) return;
   play.disabled = true;
   try {
     engine.volume(0.55);
@@ -62,26 +60,46 @@ play.addEventListener("click", async () => {
   } finally {
     play.disabled = false;
   }
+}
+play.addEventListener("click", () => {
+  if (engine.media.paused) void startDemo();
+  else engine.media.pause();
 });
 play.hidden = false;
 document.querySelector<HTMLElement>("#online-demo")!.hidden = true;
 
+function showScene(next: number) {
+  scene = next;
+  modes.forEach((mode) => mode.setAttribute("aria-pressed", String(Number(mode.dataset.scene) === next)));
+  syncPlayback();
+}
+
+if (stage.dataset.ready) {
+  const gallerySpectrum = document.querySelector<HTMLButtonElement>("#gallery-spectrum")!;
+  gallerySpectrum.hidden = false;
+  gallerySpectrum.addEventListener("click", () => {
+    transition?.kill();
+    transition = undefined;
+    gsap.set(canvas, { opacity: 1 });
+    showScene(5);
+    void startDemo();
+    document.querySelector("#demo")?.scrollIntoView({
+      behavior: reduced.matches ? "instant" : "smooth",
+    });
+  });
+}
+
 for (const button of modes) {
   button.addEventListener("click", () => {
     const next = Number(button.dataset.scene);
-    if (changing || next === scene) return;
-    function switchScene() {
-      scene = next;
-      modes.forEach((mode) => mode.setAttribute("aria-pressed", String(mode === button)));
-    }
+    if (transition || next === scene) return;
     if (reduced.matches) {
-      switchScene();
+      showScene(next);
       return;
     }
-    changing = true;
-    gsap.timeline({ onComplete: () => { changing = false; } })
+    transition = gsap.timeline({ onComplete: () => { transition = undefined; } })
       .to(canvas, { opacity: 0, duration: 0.16, ease: "power2.in" })
-      .call(switchScene)
+      .call(() => showScene(next))
       .to(canvas, { opacity: 1, duration: 0.46, ease: "power3.out" });
   });
 }

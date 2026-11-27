@@ -338,7 +338,7 @@ export function mountGraphics(
       u.resolution.value.set(W, H);
       renderer.clear();
     }
-    const b = engine.sample(s.smoothing, now);
+    const b = engine.sample(index === 5 ? Math.min(s.smoothing, .42) : s.smoothing, now);
     const motion = reduced ? 0 : s.speed;
     u.t.value += dt * motion;
     const t = u.t.value;
@@ -442,7 +442,7 @@ export function mountGraphics(
     if (index === 5) {
       const hz = (engine.context?.sampleRate ?? 48000) / 2048;
       spectrum.sample(engine.bins, hz, dt, s.bass, s.mid, s.treble);
-      spectrum.view(camera.aspect, drag);
+      spectrum.view(camera.aspect, drag, reduced ? 0 : b.beat);
     }
     lineMaterial.color
       .copy(colorset[0])

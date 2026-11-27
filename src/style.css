@@ -1747,3 +1747,8 @@ input[type="checkbox"] {
   mask-image: radial-gradient(ellipse 75% 54%, #000 63%, transparent 99%);
   opacity: .98;
 }
+@media (min-width: 821px) {
+  .extension-app.listening[data-spectrum="true"] .stage > canvas {
+    pointer-events: auto;
+  }
+}
