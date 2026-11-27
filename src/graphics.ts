@@ -316,7 +316,7 @@ export function mountGraphics(
       points.rotation.y = t * 0.24 * drift + drag;
       points.rotation.x = 0.12 + Math.sin(t * 0.4) * 0.22 * drift;
       camera.position.z =
-        (camera.aspect < 1 ? 6.3 : 4.3) - b.beat * 0.13 * drift;
+        Math.max(4.3, 3.6 / camera.aspect) - b.beat * 0.13 * drift;
     }
     if (index === 1) {
       camera.position.set(Math.sin(t * 0.3) * drift + drag * 0.3, 2.4, 5.4);
@@ -390,7 +390,7 @@ export function mountGraphics(
         drag * 0.3,
         t * 0.22,
       );
-      camera.position.z = camera.aspect < 1 ? 8.5 : 5.4;
+      camera.position.z = Math.max(5.4, 4.5 / camera.aspect);
       for (let i = 0; i < bars.count; i++) {
         const j = i / bars.count,
           angle = j * Math.PI * 2,
