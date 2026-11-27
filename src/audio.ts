@@ -69,7 +69,7 @@ export class AudioEngine {
     if (!navigator.mediaDevices?.getDisplayMedia)
       throw Error("Desktop capture is unavailable here.");
     const stream = await navigator.mediaDevices.getDisplayMedia({
-      video: { frameRate: { ideal: 1 }, width: { ideal: 320 } },
+      video: { frameRate: { ideal: 24, max: 30 }, width: { ideal: 960 } },
       audio: true,
     });
     if (!stream.getAudioTracks().length) {
@@ -79,8 +79,14 @@ export class AudioEngine {
     const connected = await this.connectInput(stream, request);
     if (connected)
       for (const track of stream.getTracks())
-        track.addEventListener("ended", ended, { once: true });
-    return connected;
+        track.addEventListener(
+          "ended",
+          () => {
+            if (this.mic?.mediaStream === stream) ended();
+          },
+          { once: true },
+        );
+    return connected ? stream : undefined;
   }
   async microphone() {
     const request = ++this.sourceRequest;

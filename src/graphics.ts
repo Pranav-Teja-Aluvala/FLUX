@@ -1,3 +1,4 @@
+import { spectrumCount, spectrumValue, spectrumFragment } from "./chromatic";
 import type { CoverPalette } from "./desktop";
 import * as T from "three";
 import type { AudioEngine } from "./audio";
@@ -146,6 +147,8 @@ export function mountGraphics(
     b: { value: colors[0][1].clone() },
     c: { value: colors[0][2].clone() },
     resolution: { value: new T.Vector2() },
+    levels: { value: new Float32Array(spectrumCount) },
+    peaks: { value: new Float32Array(spectrumCount) },
   };
   const pointsMaterial = new T.ShaderMaterial({
     uniforms: u,
@@ -161,6 +164,11 @@ export function mountGraphics(
       "varying vec2 uv0; void main(){uv0=uv;gl_Position=vec4(position,1.);}",
     fragmentShader: liquid,
   });
+  const spectrumMaterial = new T.ShaderMaterial({
+    uniforms: u,
+    vertexShader: surfaceMaterial.vertexShader,
+    fragmentShader: spectrumFragment,
+  });
   const points = new T.Points(new T.BufferGeometry(), pointsMaterial);
   points.frustumCulled = false;
   const surface = new T.Mesh(new T.PlaneGeometry(2, 2), surfaceMaterial);
@@ -175,7 +183,6 @@ export function mountGraphics(
     blending: T.AdditiveBlending,
     depthWrite: false,
   });
-  const paletteMaterial = new T.MeshBasicMaterial({ color: 0xffffff });
   const starPos = new Float32Array(210 * 3),
     linkPos = new Float32Array(4200 * 6);
   const linkGeometry = new T.BufferGeometry();
@@ -269,7 +276,10 @@ export function mountGraphics(
     points.geometry.setAttribute("position", new T.BufferAttribute(coords, 3));
     points.geometry.setAttribute("seed", new T.BufferAttribute(seeds, 1));
     points.visible = size > 0;
-    surface.visible = index === 3;
+    surface.visible = index === 3 || index === 5;
+    surface.material = index === 5 ? spectrumMaterial : surfaceMaterial;
+    u.levels.value.fill(0);
+    u.peaks.value.fill(0);
     links.visible = index === 4;
     if (index === 2)
       for (let i = 0; i < 36; i++) {
@@ -290,16 +300,9 @@ export function mountGraphics(
         );
         rig.add(new T.LineLoop(geometry, lineMaterial));
       }
-    if (index === 5) {
-      const geometry = new T.BoxGeometry(0.067, 0.9, 0.16),
-        instances = new T.InstancedMesh(geometry, paletteMaterial, 288);
-      instances.frustumCulled = false;
-      rig.add(instances);
-    }
     renderer.clear();
   }
-  const dummy = new T.Object3D(),
-    tint = new T.Color();
+  const hold = new Float32Array(spectrumCount);
   let lastAlbum: CoverPalette | undefined;
   const album = new Array(3).fill(null).map(() => new T.Color());
   function loop(now: number) {
@@ -438,54 +441,26 @@ export function mountGraphics(
       });
     }
     if (index === 5) {
-      const bars = rig.children[0] as T.InstancedMesh;
-      bars.count = Math.floor(288 * s.density);
-      bars.rotation.set(
-        0.36 + Math.sin(t * 0.4) * 0.22 * drift,
-        drag * 0.3,
-        t * 0.22,
-      );
-      camera.position.z = Math.max(5.4, 4.5 / camera.aspect);
-      for (let i = 0; i < bars.count; i++) {
-        const lane = i % 3;
-        const j = Math.floor(i / 3) / Math.ceil(bars.count / 3),
-          angle = j * Math.PI * 2 + lane * 0.035,
-          amp = engine.bins[Math.floor(2 + Math.pow(j, 2) * 240)] / 255;
-        const radial =
-          0.53 +
-          lane * 0.42 +
-          (s.style === 1
-            ? Math.sin(angle * 8) * 0.23
-            : s.style === 2
-              ? (i % 3) * 0.2
-              : 0);
-        const height =
-          0.25 +
-          hash(i) * 0.17 +
-          (lane === 2 ? 0.31 : 0.09) +
-          amp * (0.58 + u.bass.value + u.high.value * 0.3);
-        dummy.position.set(
-          Math.cos(angle) * (radial + height * 0.33),
-          Math.sin(angle) * (radial + height * 0.33),
-          Math.sin(angle * 5 + t) * (0.09 + u.mid.value * 0.18) + lane * 0.16,
+      const hz = (engine.context?.sampleRate ?? 48000) / 2048;
+      for (let i = 0; i < spectrumCount; i++) {
+        const sensitivity = i < 9 ? s.bass : i < 24 ? s.mid : s.treble;
+        const value = Math.min(
+          1,
+          spectrumValue(engine.bins, hz, i) * sensitivity,
         );
-        dummy.rotation.set(0, 0, angle - Math.PI / 2);
-        dummy.scale.set(0.5 + s.complexity * 0.42, height, 0.6 + amp);
-        dummy.updateMatrix();
-        bars.setMatrixAt(i, dummy.matrix);
-        tint
-          .copy(colorset[0])
-          .lerp(
-            colorset[lane === 2 ? 1 : 2],
-            0.35 +
-              0.65 *
-                Math.pow(0.5 + 0.5 * Math.sin(angle * 3 + u.high.value * 3), 2),
-          )
-          .multiplyScalar(0.73 + s.bloom * 0.28 + amp);
-        bars.setColorAt(i, tint);
+        const prior = u.levels.value[i];
+        const response = 1 - Math.exp(-dt * (value > prior ? 32 : 8));
+        u.levels.value[i] = prior + (value - prior) * response;
+        if (u.levels.value[i] >= u.peaks.value[i]) {
+          u.peaks.value[i] = u.levels.value[i];
+          hold[i] = 0.45;
+        } else if (hold[i] > 0) hold[i] -= dt;
+        else
+          u.peaks.value[i] = Math.max(
+            u.levels.value[i],
+            u.peaks.value[i] - dt * 0.54,
+          );
       }
-      bars.instanceMatrix.needsUpdate = true;
-      if (bars.instanceColor) bars.instanceColor.needsUpdate = true;
     }
     lineMaterial.color
       .copy(colorset[0])
@@ -520,7 +495,7 @@ export function mountGraphics(
     pointsMaterial.dispose();
     surfaceMaterial.dispose();
     lineMaterial.dispose();
-    paletteMaterial.dispose();
+    spectrumMaterial.dispose();
     renderer.dispose();
   };
 }

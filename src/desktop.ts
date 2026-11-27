@@ -4,12 +4,18 @@ export type Track = {
   album: string;
   cover: string | null;
   playing: boolean;
+  position?: number;
+  sampledAt?: number;
+  duration?: number;
+  rate?: number;
 };
 declare global {
   interface Window {
     fluxDesktop?: {
       nowPlaying(): Promise<{ track: Track | null; error?: string }>;
       stopReading(): void;
+      listSources(): Promise<{ id: string; name: string }[]>;
+      selectSource(id: string): Promise<boolean>;
     };
   }
 }
@@ -24,7 +30,10 @@ export async function coverPalette(uri: string): Promise<CoverPalette> {
   canvas.width = canvas.height = 48;
   const ctx = canvas.getContext("2d")!;
   ctx.drawImage(image, 0, 0, 48, 48);
-  const { data } = ctx.getImageData(0, 0, 48, 48);
+  return paletteFromPixels(ctx.getImageData(0, 0, 48, 48).data);
+}
+
+export function paletteFromPixels(data: Uint8ClampedArray): CoverPalette {
   const bins = new Map<
     number,
     { rgb: number[]; count: number; score: number }

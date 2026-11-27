@@ -26,6 +26,28 @@ app.whenReady().then(async () => {
     },
   });
   const content = window.webContents;
+  let captureId = "";
+  const sources = () =>
+    desktopCapturer.getSources({
+      types: ["window", "screen"],
+      thumbnailSize: { width: 0, height: 0 },
+    });
+  ipcMain.handle("flux:list-sources", async (event) => {
+    if (event.sender !== content || process.platform !== "win32") return [];
+    return (await sources())
+      .filter((source) => source.name !== "FLUX")
+      .map(({ id, name }) => ({ id, name }));
+  });
+  ipcMain.handle("flux:select-source", (event, id) => {
+    if (
+      event.sender !== content ||
+      typeof id !== "string" ||
+      !/^(window|screen):[\d:-]+$/.test(id)
+    )
+      return false;
+    captureId = id;
+    return true;
+  });
   content.setWindowOpenHandler(() => ({ action: "deny" }));
   content.on("will-navigate", (event) => event.preventDefault());
   content.session.setDisplayMediaRequestHandler(async (request, respond) => {
@@ -36,11 +58,10 @@ app.whenReady().then(async () => {
     )
       return respond({});
     try {
-      const [screen] = await desktopCapturer.getSources({
-        types: ["screen"],
-        thumbnailSize: { width: 0, height: 0 },
-      });
-      respond(screen ? { video: screen, audio: "loopback" } : {});
+      const source = (await sources()).find(
+        (item) => item.id === captureId && item.name !== "FLUX",
+      );
+      respond(source ? { video: source, audio: "loopback" } : {});
     } catch {
       respond({});
     }

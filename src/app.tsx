@@ -1,4 +1,10 @@
-import { coverPalette, type Track, type CoverPalette } from "./desktop";
+import {
+  coverPalette,
+  paletteFromPixels,
+  type Track,
+  type CoverPalette,
+} from "./desktop";
+import { Lyrics } from "./LyricPane";
 import React, { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { AudioEngine } from "./audio";
@@ -14,7 +20,7 @@ import {
 import "./style.css";
 
 const curated: Preset[] = [
-  ["Aurora", 1, 1],
+  ["Aurora", 0, 1],
   ["Event Horizon", 0, 0],
   ["Solar Flare", 5, 2],
   ["Midnight Ocean", 3, 1],
@@ -27,7 +33,7 @@ const curated: Preset[] = [
 ].map(([name, scene, palette], i) => ({
   version: 1,
   name: String(name),
-  scene: Number(scene),
+  scene: scene === 5 ? 5 : 0,
   settings: {
     ...defaults,
     palette: Number(palette),
@@ -51,8 +57,8 @@ function save(blob: Blob, name: string) {
 
 function App() {
   const [engine] = useState(() => new AudioEngine());
-  const [scene, setScene] = useState(0),
-    [settings, setSettings] = useState<Settings>(defaults);
+  const [scene, setScene] = useState<0 | 5>(0);
+  const [settings, setSettings] = useState<Settings>(defaults);
   const [reduced, setReduced] = useState(
     () => matchMedia("(prefers-reduced-motion: reduce)").matches,
   );
@@ -64,6 +70,15 @@ function App() {
     [fps, setFps] = useState(0),
     [mic, setMic] = useState(false);
   const [desktop, setDesktop] = useState(false);
+  const [shared, setShared] = useState<MediaStream>();
+  const [frameColors, setFrameColors] = useState<CoverPalette>();
+  const [visual, setVisual] = useState<"video" | "cover">("video");
+  const [sources, setSources] = useState<{ id: string; name: string }[]>([]);
+  const [captureId, setCaptureId] = useState("");
+  const [capturePending, setCapturePending] = useState(false);
+  const video = useRef<HTMLVideoElement>(null);
+  const sharedAt = useRef(0);
+  const captureDock = useRef<HTMLDetailsElement>(null);
   const [track, setTrack] = useState<Track | null>(null);
   const [albumColors, setAlbumColors] = useState<CoverPalette>();
   const [followCover, setFollowCover] = useState(true);
@@ -81,7 +96,10 @@ function App() {
     file = useRef<HTMLInputElement>(null);
   const recorder = useRef<MediaRecorder | null>(null),
     state = useRef({ scene, settings, reduced, albumColors });
-  const artwork = followCover ? albumColors : undefined;
+  const artwork = followCover
+    ? ((visual === "video" && shared ? frameColors : albumColors) ??
+      albumColors)
+    : undefined;
   state.current = { scene, settings, reduced, albumColors: artwork };
 
   useEffect(() => {
@@ -132,26 +150,103 @@ function App() {
     };
   }, [cover]);
 
+  function playbackClock() {
+    if (!desktop) return engine.media.currentTime;
+    if (
+      track &&
+      typeof track.position === "number" &&
+      (track.duration ?? 0) > 0
+    ) {
+      const age =
+        track.sampledAt && track.playing
+          ? Math.max(0, (Date.now() - track.sampledAt) / 1000)
+          : 0;
+      const rate =
+        typeof track.rate === "number" && track.rate > 0 ? track.rate : 1;
+      return Math.max(
+        0,
+        Math.min(track.duration!, track.position + age * rate),
+      );
+    }
+    return Math.max(0, (performance.now() - sharedAt.current) / 1000);
+  }
+  const showVideo = !!shared && (visual === "video" || !cover) && !cinema;
+  useEffect(() => {
+    const element = video.current;
+    if (!showVideo || !shared || !element) return;
+    element.srcObject = shared;
+    void element.play().catch(() => {});
+    const sample = document.createElement("canvas");
+    sample.width = sample.height = 40;
+    const ctx = sample.getContext("2d", { willReadFrequently: true })!;
+    let last = "";
+    const update = () => {
+      if (element.readyState < 2 || !element.videoWidth) return;
+      ctx.drawImage(element, 0, 0, 40, 40);
+      const colors = paletteFromPixels(ctx.getImageData(0, 0, 40, 40).data);
+      const signature = colors.join();
+      if (signature !== last) {
+        last = signature;
+        setFrameColors(colors);
+      }
+    };
+    const interval = window.setInterval(update, 850);
+    return () => {
+      clearInterval(interval);
+      element.srcObject = null;
+    };
+  }, [shared, showVideo]);
+
+  function clearCaptureView() {
+    setShared(undefined);
+    setFrameColors(undefined);
+    setTrack(null);
+  }
   function stopDesktop() {
     engine.stopMic();
     setDesktop(false);
-    setTrack(null);
+    clearCaptureView();
     setSource("");
+  }
+  async function refreshSources() {
+    if (!window.fluxDesktop?.listSources) return;
+    try {
+      setSources(await window.fluxDesktop.listSources());
+    } catch {
+      setError(
+        "Could not list capture sources. Open the player and try again.",
+      );
+    }
   }
   async function desktopAudio() {
     if (desktop) {
       stopDesktop();
       return;
     }
+    if (window.fluxDesktop?.listSources && !captureId) {
+      if (captureDock.current) captureDock.current.open = true;
+      void refreshSources();
+      return;
+    }
+    if (capturePending) return;
     setError("");
+    setCapturePending(true);
     try {
-      if (await engine.desktop(stopDesktop)) {
+      const stream = await engine.desktop(stopDesktop);
+      if (stream) {
+        sharedAt.current = performance.now();
+        setShared(stream);
+        setVisual("video");
+        setFrameColors(undefined);
         setMic(false);
         setDesktop(true);
-        setSource("Desktop audio");
+        setSource("Shared audio");
+        if (captureDock.current) captureDock.current.open = false;
       }
     } catch (e) {
       setError(message(e));
+    } finally {
+      setCapturePending(false);
     }
   }
 
@@ -247,7 +342,7 @@ function App() {
     setError("");
     setMic(false);
     setDesktop(false);
-    setTrack(null);
+    clearCaptureView();
     setSource(label);
     try {
       engine.volume(volume);
@@ -288,7 +383,7 @@ function App() {
     try {
       if (await engine.microphone()) {
         setDesktop(false);
-        setTrack(null);
+        clearCaptureView();
         setMic(true);
         setSource("Live microphone");
       }
@@ -310,7 +405,6 @@ function App() {
       }
       if (e.key === "Escape") setCinema(false);
       if (e.key.toLowerCase() === "f") setCinema((v) => !v);
-      if (/^[1-6]$/.test(e.key)) setScene(Number(e.key) - 1);
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
@@ -319,7 +413,7 @@ function App() {
     setSettings((v) => ({ ...v, [key]: value }));
   const apply = (p: Preset) => {
     setSettings(p.settings);
-    setScene(p.scene);
+    setScene(p.scene === 5 ? 5 : 0);
   };
   const snapshot = (): Preset =>
     parsePreset({
@@ -420,7 +514,6 @@ function App() {
           onClick={(e) => {
             if (window.fluxDesktop) {
               e.preventDefault();
-              setScene(0);
               setCinema(false);
               setPanel(false);
             }
@@ -445,8 +538,43 @@ function App() {
         </div>
       </header>
       <main className="workspace">
+        <Lyrics
+          clock={playbackClock}
+          track={desktop ? track : null}
+          source={source}
+          live={desktop}
+        />
         <section className="stage" aria-label="Audio-reactive environment">
           <canvas ref={canvas} aria-label={current[0] + " visualization"} />
+          <nav className="visual-modes" aria-label="Visualizer">
+            <button aria-pressed={scene === 0} onClick={() => setScene(0)}>
+              Singularity
+            </button>
+            <button aria-pressed={scene === 5} onClick={() => setScene(5)}>
+              Chromatic
+            </button>
+          </nav>
+          {scene === 5 && (
+            <div
+              className="frequency-scale"
+              aria-label="Logarithmic frequency axis"
+            >
+              {[
+                ["50 Hz", 1],
+                ["100", 13.3],
+                ["250", 29.9],
+                ["500", 42.4],
+                ["1k", 55],
+                ["2k", 67.6],
+                ["5k", 84.1],
+                ["12 kHz", 100],
+              ].map(([label, at]) => (
+                <span key={label} style={{ left: at + "%" }}>
+                  {label}
+                </span>
+              ))}
+            </div>
+          )}
           <div className="stage-label" key={scene}>
             <div className="eyebrow">
               <i /> {desktop || mic || playing ? "Live" : "Standby"}
@@ -479,7 +607,7 @@ function App() {
             </button>
           </div>
           <div className="stage-foot">
-            {scene !== 3 && <span>Drag to explore</span>}
+            {scene === 0 && <span>Drag to orbit</span>}
             {fps > 0 && <span>{fps} FPS</span>}
           </div>
           {graphicsError && (
@@ -488,134 +616,221 @@ function App() {
             </p>
           )}
         </section>
-        <nav className="environments" aria-label="Environments">
-          <h2>Scenes</h2>
-          {scenes.map(([label, accent, description], i) => (
-            <button
-              key={label}
-              aria-label={label}
-              aria-pressed={scene === i}
-              style={{ "--scene-color": accent } as React.CSSProperties}
-              onClick={() => setScene(i)}
-            >
-              <img
-                src={
-                  import.meta.env.BASE_URL +
-                  "scenes/" +
-                  label.toLowerCase() +
-                  ".webp"
-                }
-                alt=""
-                width="52"
-                height="52"
-              />
-              <span className="scene-copy">
-                <strong>{label}</strong>
-                <span>{description}</span>
-              </span>
-            </button>
-          ))}
-        </nav>
+        <aside className="media-pane" aria-label="Now playing video">
+          <header className="pane-header">
+            <h2>Now playing</h2>
+            {desktop && <span className="live-label">Live input</span>}
+          </header>
+          {shared || cover ? (
+            <>
+              <figure className="media-frame">
+                {showVideo ? (
+                  <video
+                    ref={video}
+                    muted
+                    autoPlay
+                    playsInline
+                    aria-label="Live shared video"
+                  />
+                ) : cover ? (
+                  <img src={cover} alt="Current album artwork" />
+                ) : null}
+              </figure>
+              <div className="media-caption">
+                <strong>{track?.title || "Shared video"}</strong>
+                {track?.artist && <span>{track.artist}</span>}
+              </div>
+              {shared && cover && (
+                <div className="media-switch">
+                  <button
+                    aria-pressed={visual === "video"}
+                    onClick={() => setVisual("video")}
+                  >
+                    Video
+                  </button>
+                  <button
+                    aria-pressed={visual === "cover"}
+                    onClick={() => setVisual("cover")}
+                  >
+                    Album art
+                  </button>
+                </div>
+              )}
+              {artwork && (
+                <div
+                  className="palette-strip"
+                  aria-label="Colors sampled from the image"
+                >
+                  {artwork.map((color, i) => (
+                    <i key={i} style={{ background: color }} />
+                  ))}
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="media-empty">
+              <p>
+                Open Sharing and inputs below to show the video or artwork here.
+              </p>
+            </div>
+          )}
+        </aside>
       </main>
-      <footer className="transport">
-        <div className="track-controls">
-          <button
-            className="play"
-            aria-label={
-              desktop
-                ? "Stop desktop capture"
-                : mic
-                  ? "Stop microphone"
-                  : playing
-                    ? "Pause"
-                    : "Play"
-            }
-            onClick={() => void toggle()}
-          >
-            {desktop || mic ? "■" : playing ? "Ⅱ" : "▶"}
-          </button>
-          {cover && <img className="album-cover" src={cover} alt="" />}
-          <div className="track">
-            <span>
-              {desktop && track?.title
-                ? track.title
-                : source || "No audio selected"}
-            </span>
-            <span>
+      <div className="bottom-dock">
+        <details
+          className="capture-drawer"
+          ref={captureDock}
+          onToggle={(e) => {
+            if (e.currentTarget.open && !sources.length && !desktop)
+              void refreshSources();
+          }}
+        >
+          <summary>
+            {desktop ? "Shared video controls" : "Sharing and inputs"}
+          </summary>
+          <div className="capture-content">
+            {window.fluxDesktop?.listSources && !desktop && (
+              <>
+                <label>
+                  Window or display{" "}
+                  <select
+                    value={captureId}
+                    onChange={async (e) => {
+                      const id = e.target.value;
+                      if (await window.fluxDesktop?.selectSource(id))
+                        setCaptureId(id);
+                    }}
+                  >
+                    <option value="">Choose a window or display</option>
+                    {sources.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <button onClick={() => void refreshSources()}>
+                  Find windows
+                </button>
+              </>
+            )}
+            <button
+              aria-pressed={desktop}
+              onClick={() => void desktopAudio()}
+              disabled={capturePending}
+            >
               {desktop
-                ? track?.artist ||
-                  (window.fluxDesktop
-                    ? "Waiting for a Windows media session"
-                    : "Browser capture")
-                : mic
-                  ? "MIC INPUT"
-                  : playing
-                    ? "PLAYING"
-                    : source
-                      ? "PAUSED"
-                      : "LOCAL AUDIO"}
-            </span>
+                ? "Stop sharing"
+                : capturePending
+                  ? "Connecting…"
+                  : "Share video + audio"}
+            </button>
+            <button aria-pressed={mic} onClick={() => void microphone()}>
+              {mic ? "Stop mic" : "Mic"}
+            </button>
+            <label>
+              <input
+                type="checkbox"
+                checked={followCover}
+                onChange={(e) => setFollowCover(e.target.checked)}
+              />{" "}
+              Use image colors
+            </label>
           </div>
-        </div>
-        <div className="input-actions">
-          <button className="file-source" onClick={() => file.current?.click()}>
-            Open audio
-          </button>
-          <button aria-pressed={mic} onClick={() => void microphone()}>
-            {mic ? "Stop mic" : "Mic"}
-          </button>
-          <button className="demo-source" onClick={() => void demo()}>
-            Play demo
-          </button>
-          <button
-            className="desktop-source"
-            aria-pressed={desktop}
-            onClick={() => void desktopAudio()}
-          >
-            {desktop ? "Stop desktop" : "Desktop audio"}
-          </button>
-        </div>
-        <div className="seek">
-          <span>{fmt(position)}</span>
-          <input
-            aria-label="Seek"
-            type="range"
-            min="0"
-            max={duration || 1}
-            step=".01"
-            disabled={!duration || mic || desktop}
-            value={Math.min(duration, position)}
-            onChange={(e) => {
-              engine.media.currentTime = +e.target.value;
-              setPosition(+e.target.value);
-            }}
+        </details>
+        <footer className="transport">
+          <div className="track-controls">
+            <button
+              className="play"
+              aria-label={
+                desktop
+                  ? "Stop desktop capture"
+                  : mic
+                    ? "Stop microphone"
+                    : playing
+                      ? "Pause"
+                      : "Play"
+              }
+              onClick={() => void toggle()}
+            >
+              {desktop || mic ? "■" : playing ? "Ⅱ" : "▶"}
+            </button>
+            {cover && <img className="album-cover" src={cover} alt="" />}
+            <div className="track">
+              <span>
+                {desktop && track?.title
+                  ? track.title
+                  : source || "No audio selected"}
+              </span>
+              <span>
+                {desktop
+                  ? track?.artist ||
+                    (window.fluxDesktop
+                      ? "Waiting for a Windows media session"
+                      : "Browser capture")
+                  : mic
+                    ? "MIC INPUT"
+                    : playing
+                      ? "PLAYING"
+                      : source
+                        ? "PAUSED"
+                        : "LOCAL AUDIO"}
+              </span>
+            </div>
+          </div>
+          <div className="input-actions">
+            <button
+              className="file-source"
+              onClick={() => file.current?.click()}
+            >
+              Open audio
+            </button>
+            <button className="demo-source" onClick={() => void demo()}>
+              Play demo
+            </button>
+          </div>
+          <div className="seek">
+            <span>{fmt(position)}</span>
+            <input
+              aria-label="Seek"
+              type="range"
+              min="0"
+              max={duration || 1}
+              step=".01"
+              disabled={!duration || mic || desktop}
+              value={Math.min(duration, position)}
+              onChange={(e) => {
+                engine.media.currentTime = +e.target.value;
+                setPosition(+e.target.value);
+              }}
+            />
+            <span>{fmt(duration)}</span>
+          </div>
+          <canvas
+            ref={spect}
+            className="spectrum"
+            width={240}
+            height={38}
+            aria-label="Live spectrum and waveform"
           />
-          <span>{fmt(duration)}</span>
-        </div>
-        <canvas
-          ref={spect}
-          className="spectrum"
-          width={240}
-          height={38}
-          aria-label="Live spectrum and waveform"
-        />
-        <label className="volume">
-          Vol
-          <input
-            aria-label="Volume"
-            type="range"
-            min="0"
-            max="1"
-            step=".01"
-            value={volume}
-            onChange={(e) => {
-              const v = +e.target.value;
-              engine.volume(v);
-              setVolume(v);
-            }}
-          />
-        </label>
-      </footer>
+          <label className="volume">
+            Vol
+            <input
+              aria-label="Volume"
+              type="range"
+              min="0"
+              max="1"
+              step=".01"
+              value={volume}
+              onChange={(e) => {
+                const v = +e.target.value;
+                engine.volume(v);
+                setVolume(v);
+              }}
+            />
+          </label>
+        </footer>
+      </div>
       <input
         hidden
         ref={file}
@@ -641,7 +856,7 @@ function App() {
               checked={followCover}
               onChange={(e) => setFollowCover(e.target.checked)}
             />{" "}
-            Follow album artwork
+            Follow image colors
           </label>
           {!window.fluxDesktop && (
             <a
@@ -679,21 +894,6 @@ function App() {
               )}
             </select>
           </label>
-          {scene === 5 && (
-            <label className="select">
-              Composition
-              <select
-                value={settings.style}
-                onChange={(e) => update("style", +e.target.value)}
-              >
-                {["Radial", "Rosette", "Offset"].map((v, i) => (
-                  <option key={v} value={i}>
-                    {v}
-                  </option>
-                ))}
-              </select>
-            </label>
-          )}
           <div className="sliders">
             {ranges.map(([key, label, min, max]) => (
               <label key={key}>

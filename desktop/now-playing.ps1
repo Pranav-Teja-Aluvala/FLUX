@@ -25,7 +25,8 @@ while ($true) {
     $session = $manager.GetCurrentSession()
     $playing = $session -and $session.GetPlaybackInfo().PlaybackStatus -eq 'Playing'
     if (!$playing) {
-      $session = $manager.GetSessions() | Where-Object { $_.GetPlaybackInfo().PlaybackStatus -eq 'Playing' } | Select-Object -First 1
+      $activeSession = $manager.GetSessions() | Where-Object { $_.GetPlaybackInfo().PlaybackStatus -eq 'Playing' } | Select-Object -First 1
+      if ($activeSession) { $session = $activeSession }
     }
     if (!$session) {
       $lastTrack = $null
@@ -57,8 +58,13 @@ while ($true) {
         }
         $lastTrack = $key
       }
-      $playing = $session.GetPlaybackInfo().PlaybackStatus -eq 'Playing'
-      [Console]::WriteLine((@{title=$properties.Title;artist=$properties.Artist;album=$properties.AlbumTitle;playing=$playing;cover=$cover} | ConvertTo-Json -Compress))
+      $playback = $session.GetPlaybackInfo()
+      $timeline = $session.GetTimelineProperties()
+      $duration = ($timeline.EndTime - $timeline.StartTime).TotalSeconds
+      $position = ($timeline.Position - $timeline.StartTime).TotalSeconds
+      $sampledAt = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
+      try { $sampledAt = $timeline.LastUpdatedTime.ToUnixTimeMilliseconds() } catch {}
+      [Console]::WriteLine((@{title=$properties.Title;artist=$properties.Artist;album=$properties.AlbumTitle;playing=($playback.PlaybackStatus -eq 'Playing');cover=$cover;position=$position;sampledAt=$sampledAt;duration=$duration;rate=$playback.PlaybackRate} | ConvertTo-Json -Compress))
     }
   } catch {
     [Console]::Error.WriteLine($_.Exception.Message)

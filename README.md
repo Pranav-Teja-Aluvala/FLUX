@@ -4,16 +4,15 @@ FLUX is a browser instrument for turning sound into real-time WebGL environments
 
 ![FLUX studio showing Singularity](public/studio.png)
 
-## Studio
+## Listening view
 
-- **Singularity** expands a GPU particle sphere with bass and scatters particles with treble.
-- **Dreamscape** shifts procedural terrain using bass and midrange.
-- **Hyperspace** accelerates through geometric rings and changes their color on detected beats.
-- **Liquid** warps an iridescent domain with a fragment shader.
-- **Constellation** deforms connected stars and changes connection reach with midrange.
-- **Chromatic** maps FFT bins to instanced radial geometry. Its three compositions live in Studio.
+- Open **Sharing and inputs** at the bottom and select **Share video + audio**. In Chrome, choose the tab playing music and enable **Share tab audio**. The right pane shows the real shared feed. On Windows, select a player window or display in the portable app.
+- Switch between **Singularity** and **Chromatic** in the center. Chromatic maps actual FFT bins to a labeled log-frequency axis, with peak holds and a quiet baseline.
+- The visualizer follows the colors sampled from the visible video. When Windows reports cover art, switch the right pane to **Album art** to use its colors instead.
+- On the left, search for a timed recording through LRCLIB or load a local LRC. Windows media sessions and local audio files supply a playback clock. For browser capture and mixes, enter the actual song and click a lyric as you hear it to align the timeline. The Earlier and Later buttons adjust the offset.
+- **Space** toggles local playback or stops live input. **F** opens Cinema and **Escape** exits. Drag the visualization to orbit. PNG and Rec capture the visualizer canvas.
 
-Open **Studio** for palette, motion, sensitivity and render controls. Custom presets are stored on the device in IndexedDB and can be exchanged as versioned JSON. Use **1–6** to pick a scene, **Space** for playback, and **F** or **Escape** for cinematic mode. Drag the stage in the spatial scenes. Use **PNG** or **Rec** to capture the stage. Video includes audio where supported. Stop microphone input after use from the transport controls.
+Only an explicit lyrics search sends song and artist names to LRCLIB. Video frames, audio, and color extraction stay local. The browser controls its own screen-sharing indicator.
 
 ## Development
 
@@ -45,6 +44,6 @@ npm ci
 npm run desktop
 ~~~
 
-Play music in your usual player, then select **Desktop audio** in FLUX. The first launch downloads the Electron runtime. FLUX reads metadata and artwork from the active Windows media session, with audio captured from Windows loopback. Audio from other apps using the same output can also affect the visualization. Use **Stop desktop** to stop capture and metadata polling. Turn off **Follow album artwork** in Studio to keep your chosen palette.
+Play music in your usual player, then open **Sharing and inputs**, choose your player window, and select **Share video + audio**. The first launch downloads the Electron runtime. FLUX reads metadata and artwork from the active Windows media session, with audio captured from Windows loopback. Audio from other apps using the same output can also affect the visualization. Use **Stop sharing** to stop capture and metadata polling. Turn off **Use image colors** in Studio to keep your chosen palette.
 
 Players decide what they publish to Windows. When a player provides a title but no cover, FLUX displays the title and uses the selected scene palette. The hosted browser build can capture shared audio from a tab or screen when offered by the browser. Windows song detection and cover colors are available in the Windows app.
