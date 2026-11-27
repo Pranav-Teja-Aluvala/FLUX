@@ -1,4 +1,4 @@
-import { cleanYouTubeTitle, parseLrc, type Line, type LyricsMatch } from "./lyrics";
+import { cleanYouTubeTitle, currentLine, parseLrc, type Line, type LyricsMatch } from "./lyrics";
 
 export type CaptionCue = { start: number; end: number; text: string };
 type Sample = { time: number; text: string };
@@ -30,7 +30,7 @@ export function captionFragment(previous: string, incoming: string) {
 }
 
 export function shortCaption(text: string) {
-  return text.trim().split(/\s+/).slice(-12).join(" ");
+  return text.trim().split(/\s+/).slice(-8).join(" ").slice(-96);
 }
 
 export function cueParts(cue: CaptionCue) {
@@ -44,6 +44,19 @@ export function cueParts(cue: CaptionCue) {
     if (text && time >= cue.start && time < cue.end) parts.push({ time, text });
   }
   return parts;
+}
+
+export function timedCaptionWindow(cue: CaptionCue, position: number) {
+  if (position < cue.start || position >= cue.end) return [];
+  const parts = cueParts(cue);
+  if (parts.length < 2) return [];
+  const tokens = parts.flatMap(({ time, text }) =>
+    (text.match(/\S+/g) ?? []).map((token) => ({ time, text: token.slice(0, 48) })),
+  );
+  const lastSpoken = currentLine(tokens, position);
+  if (lastSpoken < 0) return [];
+  const start = Math.floor(lastSpoken / 8) * 8;
+  return tokens.slice(start, start + 8);
 }
 
 export type CaptionMatch = {

@@ -1456,7 +1456,28 @@ input[type="checkbox"] {
   -webkit-line-clamp: 3;
   overflow: hidden;
 }
-.theater-cues span[data-spoken="false"] {
+.theater-live-caption {
+  display: grid;
+  align-content: safe center;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+.theater-live-caption p {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+  max-width: 32ch;
+  margin: 0;
+  color: #fffdf2;
+  font-size: clamp(20px, 2.65vw, 42px);
+  line-height: 1.2;
+  letter-spacing: -0.035em;
+  font-weight: 680;
+  overflow-wrap: anywhere;
+}
+.theater-live-caption span[data-spoken="false"] {
   opacity: 0.48;
 }
 .theater-cues p {

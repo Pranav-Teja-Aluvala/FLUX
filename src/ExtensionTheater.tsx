@@ -11,7 +11,7 @@ import {
   type LyricsMatch,
 } from "./lyrics";
 import {
-  captionFragment, cueParts, matchCaptionLyrics, shortCaption, songCandidates,
+  captionFragment, matchCaptionLyrics, shortCaption, songCandidates, timedCaptionWindow,
 } from "./caption-lyrics";
 import { controlYouTube } from "./media-preview";
 import type { LocalListening, VoiceMode } from "./local-listening";
@@ -54,11 +54,10 @@ export function ExtensionTheater({
   const [commandError, setCommandError] = useState("");
   const [lookupFailed, setLookupFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
-  const [captionRows, setCaptionRows] = useState<string[]>([]);
+  const [liveCaption, setLiveCaption] = useState("");
   const [observations, setObservations] = useState<{ time: number; text: string }[]>([]);
   const [candidates, setCandidates] = useState<LyricsMatch[]>([]);
   const [lookupComplete, setLookupComplete] = useState(false);
-  const lastCue = useRef("");
   const lastYouTubeCue = useRef("");
   const scroll = useRef<HTMLDivElement>(null),
     highlight = useRef<HTMLButtonElement>(null);
@@ -84,13 +83,14 @@ export function ExtensionTheater({
   const index = currentLine(lines, position);
   const localLines = analysis.result?.lines.slice(-3) ?? [];
   const showSynced = lines.length > 0 && !(voiceMode > 1 && localLines.length);
-  const timedParts = nativeCue && position >= nativeCue.start && position < nativeCue.end
-    ? cueParts(nativeCue) : [];
+  const timedParts = nativeCue ? timedCaptionWindow(nativeCue, position) : [];
+  const visibleCaption = nativeCue && (position < nativeCue.start || position >= nativeCue.end)
+    ? "" : liveCaption;
   const lyricHeading = showSynced
     ? "Lyrics"
     : localLines.length
       ? "Local captions"
-      : captionRows.length ? "Live captions" : "Lyrics";
+      : (visibleCaption || timedParts.length) ? "Live captions" : "Lyrics";
   useEffect(() => {
     setLines([]);
     setLookupComplete(false);
@@ -180,20 +180,10 @@ export function ExtensionTheater({
   }, [index, lines, showSynced]);
   useEffect(() => {
     if (!cue) {
-      const expire = window.setTimeout(() => {
-        lastCue.current = "";
-        setCaptionRows([]);
-      }, 2800);
+      const expire = window.setTimeout(() => setLiveCaption(""), 1600);
       return () => clearTimeout(expire);
     }
-    const fresh = shortCaption(captionFragment(lastCue.current, cue));
-    lastCue.current = cue;
-    if (!fresh) return;
-    setCaptionRows((previous) => {
-      const latest = previous.at(-1);
-      if (latest === fresh) return previous;
-      return [...previous.slice(-1), fresh];
-    });
+    setLiveCaption(shortCaption(cue));
   }, [cue]);
   async function seek(time: number) {
     if (!track?.videoId) return;
@@ -325,21 +315,15 @@ export function ExtensionTheater({
               );
             })}
           </div>
-        ) : timedParts.length > 1 ? (
-          <div className="theater-cues" aria-live="off">
-            <p data-current="true">
-              {timedParts.map((part, index) => (
-                <span key={index} data-spoken={part.time <= position}>{part.text}</span>
-              ))}
+        ) : (timedParts.length || visibleCaption) ? (
+          <div className="theater-live-caption" aria-live={timedParts.length ? "off" : "polite"}>
+            <p>
+              {timedParts.length ? timedParts.map((part, index) => (
+                <span key={index} data-spoken={part.time <= position}>
+                  {index ? " " : ""}{part.text}
+                </span>
+              )) : visibleCaption}
             </p>
-          </div>
-        ) : captionRows.length ? (
-          <div className="theater-cues" aria-live="polite">
-            {captionRows.map((line, i) => (
-              <p key={i} data-current={i === captionRows.length - 1}>
-                {line}
-              </p>
-            ))}
           </div>
         ) : (
           <div className="theater-empty" role="status">

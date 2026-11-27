@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   captionFragment, cueParts, matchCaptionLyrics, shortCaption, songCandidates,
+  timedCaptionWindow,
 } from "../src/caption-lyrics";
 
 const recording = {
@@ -16,7 +17,11 @@ const recording = {
 test("rolling caption snapshots only add new text and remain compact", () => {
   assert.equal(captionFragment("The window sees", "window sees another morning"), "another morning");
   assert.equal(captionFragment("Wet leaves gather", "wet leaves gather"), "");
-  assert.equal(shortCaption("one two three four five six seven eight nine ten eleven twelve thirteen").split(" ").length, 12);
+  assert.equal(
+    shortCaption("one two three four five six seven eight nine ten eleven twelve thirteen"),
+    "six seven eight nine ten eleven twelve thirteen",
+  );
+  assert.equal(shortCaption("x".repeat(500)).length, 96);
 });
 
 test("caption timestamps confirm a slowed edit and constrain the synced portion", () => {
@@ -38,4 +43,14 @@ test("uses WebVTT's authored timing for words or groups", () => {
   assert.deepEqual(cueParts({
     start: 11, end: 14, text: "<c>One</c> <00:11.500>two <00:12.500>three",
   }), [{ time: 11, text: "One " }, { time: 11.5, text: "two " }, { time: 12.5, text: "three" }]);
+});
+
+test("long timed captions show a short window that advances on authored timestamps", () => {
+  const cue = {
+    start: 11, end: 19,
+    text: "one two three four five six seven eight <00:14.500>nine ten eleven",
+  };
+  assert.equal(timedCaptionWindow(cue, 14.4).at(-1)?.text, "eight");
+  assert.deepEqual(timedCaptionWindow(cue, 14.5).map((part) => part.text), ["nine", "ten", "eleven"]);
+  assert.deepEqual(timedCaptionWindow(cue, 19), []);
 });
