@@ -65,3 +65,30 @@ export async function findLyrics(
     )
     .slice(0, 8);
 }
+
+export function exactRecording(
+  matches: LyricsMatch[],
+  title: string,
+  artist: string,
+  seconds: number,
+) {
+  const normalize = (value: string) =>
+    value
+      .normalize("NFKC")
+      .toLowerCase()
+      .replace(/[^\p{L}\p{N}]+/gu, " ")
+      .trim();
+  const key = normalize(title),
+    performer = normalize(artist);
+  if (!key || !performer || !Number.isFinite(seconds) || seconds <= 0) return;
+  return matches
+    .filter(
+      (match) =>
+        normalize(match.trackName) === key &&
+        normalize(match.artistName) === performer &&
+        Math.abs(match.duration - seconds) <= 4,
+    )
+    .sort(
+      (a, b) => Math.abs(a.duration - seconds) - Math.abs(b.duration - seconds),
+    )[0];
+}

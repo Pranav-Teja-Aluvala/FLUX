@@ -1,16 +1,27 @@
-const { app, BrowserWindow, desktopCapturer, ipcMain } = require("electron");
+const {
+  app,
+  BrowserWindow,
+  desktopCapturer,
+  ipcMain,
+  screen,
+} = require("electron");
 const { spawn } = require("node:child_process");
 const { createInterface } = require("node:readline");
 const path = require("node:path");
+const { pickCaptureSource } = require("./source.cjs");
 
 let reader;
 let current = null;
 let readerError = "";
+let firstSample;
+let previewKind;
 function stopReader() {
   reader?.kill();
   reader = undefined;
   current = null;
   readerError = "";
+  firstSample = undefined;
+  previewKind = undefined;
 }
 
 app.whenReady().then(async () => {
@@ -42,7 +53,7 @@ app.whenReady().then(async () => {
     if (
       event.sender !== content ||
       typeof id !== "string" ||
-      !/^(window|screen):[\d:-]+$/.test(id)
+      (id !== "" && !/^(window|screen):[\d:-]+$/.test(id))
     )
       return false;
     captureId = id;
@@ -58,18 +69,46 @@ app.whenReady().then(async () => {
     )
       return respond({});
     try {
-      const source = (await sources()).find(
-        (item) => item.id === captureId && item.name !== "FLUX",
+      startReader();
+      if (!captureId && firstSample) {
+        let timer;
+        try {
+          await Promise.race([
+            firstSample,
+            new Promise((resolve) => {
+              timer = setTimeout(resolve, 1250);
+            }),
+          ]);
+        } finally {
+          clearTimeout(timer);
+        }
+      }
+      const source = pickCaptureSource(
+        await sources(),
+        captureId,
+        current,
+        String(screen.getPrimaryDisplay().id),
       );
-      respond(source ? { video: source, audio: "loopback" } : {});
+      if (!source) {
+        stopReader();
+        return respond({});
+      }
+      previewKind =
+        !captureId && source.id.startsWith("screen:")
+          ? "automatic-display"
+          : "selected-video";
+      respond({ video: source, audio: "loopback" });
     } catch {
+      stopReader();
       respond({});
     }
   });
-  ipcMain.handle("flux:now-playing", (event) => {
-    if (event.sender !== content || process.platform !== "win32")
-      return { track: null };
+  function startReader() {
     if (!reader && !readerError) {
+      let ready;
+      firstSample = new Promise((resolve) => {
+        ready = resolve;
+      });
       reader = spawn(
         path.join(
           process.env.SystemRoot || "C:/Windows",
@@ -93,19 +132,27 @@ app.whenReady().then(async () => {
         } catch {
           current = null;
         }
+        ready();
       });
       child.stderr.resume();
       child.on("error", () => {
+        ready();
         if (reader === child)
           readerError = "Windows media service could not start.";
       });
       child.on("exit", () => {
+        ready();
         if (reader === child)
           readerError =
             "Windows media service stopped. Restart Desktop audio to reconnect.";
       });
     }
-    return { track: current, error: readerError };
+  }
+  ipcMain.handle("flux:now-playing", (event) => {
+    if (event.sender !== content || process.platform !== "win32")
+      return { track: null };
+    startReader();
+    return { track: current, error: readerError, previewKind };
   });
   ipcMain.on("flux:stop-reading", (event) => {
     if (event.sender === content) stopReader();

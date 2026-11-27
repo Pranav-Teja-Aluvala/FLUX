@@ -106,11 +106,20 @@ function App() {
     if (!desktop || !window.fluxDesktop) return;
     const bridge = window.fluxDesktop;
     let stopped = false,
-      timer: number;
+      timer: number,
+      initializedPreview = false;
     async function poll() {
       try {
         const result = await bridge.nowPlaying();
         if (stopped) return;
+        if (
+          !initializedPreview &&
+          result.track?.cover &&
+          result.previewKind === "automatic-display"
+        ) {
+          setVisual("cover");
+          initializedPreview = true;
+        }
         setTrack((prior) =>
           JSON.stringify(prior) === JSON.stringify(result.track)
             ? prior
@@ -223,11 +232,6 @@ function App() {
       stopDesktop();
       return;
     }
-    if (window.fluxDesktop?.listSources && !captureId) {
-      if (captureDock.current) captureDock.current.open = true;
-      void refreshSources();
-      return;
-    }
     if (capturePending) return;
     setError("");
     setCapturePending(true);
@@ -244,6 +248,7 @@ function App() {
         if (captureDock.current) captureDock.current.open = false;
       }
     } catch (e) {
+      window.fluxDesktop?.stopReading();
       setError(message(e));
     } finally {
       setCapturePending(false);
@@ -669,9 +674,7 @@ function App() {
             </>
           ) : (
             <div className="media-empty">
-              <p>
-                Open Sharing and inputs below to show the video or artwork here.
-              </p>
+              <p>Select Desktop audio to start.</p>
             </div>
           )}
         </aside>
@@ -701,7 +704,9 @@ function App() {
                         setCaptureId(id);
                     }}
                   >
-                    <option value="">Choose a window or display</option>
+                    <option value="">
+                      Automatic player or primary display
+                    </option>
                     {sources.map((item) => (
                       <option key={item.id} value={item.id}>
                         {item.name}
@@ -714,17 +719,6 @@ function App() {
                 </button>
               </>
             )}
-            <button
-              aria-pressed={desktop}
-              onClick={() => void desktopAudio()}
-              disabled={capturePending}
-            >
-              {desktop
-                ? "Stop sharing"
-                : capturePending
-                  ? "Connecting…"
-                  : "Share video + audio"}
-            </button>
             <button aria-pressed={mic} onClick={() => void microphone()}>
               {mic ? "Stop mic" : "Mic"}
             </button>
@@ -779,6 +773,23 @@ function App() {
             </div>
           </div>
           <div className="input-actions">
+            <button
+              className="desktop-source"
+              aria-pressed={desktop}
+              disabled={capturePending}
+              title={
+                window.fluxDesktop
+                  ? "Capture system audio and the playing window or primary display"
+                  : "Choose a browser tab with audio"
+              }
+              onClick={() => void desktopAudio()}
+            >
+              {desktop
+                ? "Stop desktop"
+                : capturePending
+                  ? "Connecting…"
+                  : "Desktop audio"}
+            </button>
             <button
               className="file-source"
               onClick={() => file.current?.click()}

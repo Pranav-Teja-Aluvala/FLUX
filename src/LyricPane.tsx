@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
   currentLine,
+  exactRecording,
   findLyrics,
   parseLrc,
   type Line,
@@ -32,7 +33,9 @@ export function Lyrics({
     request = useRef<AbortController>(null);
   const selectors = useRef({ clock, lines, offset });
   selectors.current = { clock, lines, offset };
-  const trackKey = track?.title + "|" + track?.artist;
+  const trackTitle = track?.title ?? "";
+  const trackArtist = track?.artist ?? "";
+  const trackDuration = track?.duration ?? 0;
   useEffect(() => {
     request.current?.abort();
     setLines([]);
@@ -42,9 +45,40 @@ export function Lyrics({
     setOffset(0);
     setStatus("");
     setView(true);
-    setTitle(track?.title ?? "");
-    setArtist(track?.artist ?? "");
-  }, [source, trackKey]);
+    setTitle(trackTitle);
+    setArtist(trackArtist);
+  }, [source, trackTitle, trackArtist]);
+  useEffect(() => {
+    if (!live || !trackTitle || !trackArtist || !trackDuration) return;
+    const controller = new AbortController();
+    request.current = controller;
+    setStatus("Finding timed lyrics for this song…");
+    void findLyrics(trackTitle, trackArtist, controller.signal).then(
+      (matches) => {
+        if (controller.signal.aborted) return;
+        const match = exactRecording(
+          matches,
+          trackTitle,
+          trackArtist,
+          trackDuration,
+        );
+        if (match)
+          useLyrics(
+            match.syncedLyrics,
+            match.trackName + " · " + match.artistName,
+          );
+        else
+          setStatus(
+            "No exact timed match. You can search for the individual song or open an LRC file.",
+          );
+      },
+      (error) => {
+        if (!controller.signal.aborted)
+          setStatus(error instanceof Error ? error.message : String(error));
+      },
+    );
+    return () => controller.abort();
+  }, [live, source, trackTitle, trackArtist, trackDuration]);
   useEffect(() => {
     const update = () => {
       const v = selectors.current;
@@ -67,6 +101,7 @@ export function Lyrics({
         scroll.clientHeight * 0.28;
   }, [active, view]);
   function useLyrics(data: string, label: string) {
+    request.current?.abort();
     const parsed = parseLrc(data);
     if (!parsed.some((v) => v.text)) {
       setStatus("This file has no timed lyric lines.");

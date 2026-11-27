@@ -908,3 +908,26 @@ input[type="checkbox"] {
     display: none;
   }
 }
+
+.desktop-source {
+  background: var(--lime);
+  border-color: var(--lime);
+  color: #1d2416;
+}
+.desktop-source:hover:not(:disabled) {
+  background: #e3f4b9;
+  color: #1d2416;
+}
+.input-actions .desktop-source[aria-pressed="true"] {
+  background: #26341e;
+  border-color: #6d8355;
+  color: #eeeedf;
+}
+.demo-source {
+  background: var(--paper);
+  color: inherit;
+  border-color: var(--line);
+}
+.demo-source:hover:not(:disabled) {
+  background: #272c24;
+}

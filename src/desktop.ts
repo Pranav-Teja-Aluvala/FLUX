@@ -12,7 +12,11 @@ export type Track = {
 declare global {
   interface Window {
     fluxDesktop?: {
-      nowPlaying(): Promise<{ track: Track | null; error?: string }>;
+      nowPlaying(): Promise<{
+        track: Track | null;
+        error?: string;
+        previewKind?: "automatic-display" | "selected-video";
+      }>;
       stopReading(): void;
       listSources(): Promise<{ id: string; name: string }[]>;
       selectSource(id: string): Promise<boolean>;
