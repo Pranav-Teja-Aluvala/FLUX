@@ -1,4 +1,4 @@
-import { captureLinkedTab } from "./media-preview";
+import { captureLinkedTab, inExtension } from "./media-preview";
 export type Bands = {
   bass: number;
   mid: number;
@@ -38,7 +38,7 @@ export class AudioEngine {
     this.media.loop = false;
     this.media.preload = "metadata";
   }
-  async activate() {
+  async activate(waitForAudio = true) {
     if (!this.context) {
       const c = (this.context = new AudioContext()),
         a = (this.analyser = c.createAnalyser());
@@ -54,7 +54,9 @@ export class AudioEngine {
       this.gain.connect(c.destination);
       this.gain.connect(this.capture);
     }
-    await this.context.resume();
+    const resumed = this.context.resume();
+    if (waitForAudio) await resumed;
+    else void resumed.catch(() => {});
   }
   volume(value: number) {
     this.level = value;
@@ -72,7 +74,7 @@ export class AudioEngine {
   async desktop(ended: () => void) {
     const request = ++this.sourceRequest;
     const native = !!window.fluxDesktop;
-    if (!native) await this.activate();
+    if (!native) await this.activate(!inExtension);
     if (request !== this.sourceRequest) return;
     const stream = native
       ? await navigator.mediaDevices.getDisplayMedia({
@@ -84,7 +86,7 @@ export class AudioEngine {
       stream.getTracks().forEach((track) => track.stop());
       throw Error("Choose a screen or tab and enable Share audio.");
     }
-    const connected = await this.connectInput(stream, request);
+    const connected = await this.connectInput(stream, request, !inExtension);
     if (connected && !native) {
       const monitor = (this.monitor = this.context!.createGain());
       monitor.gain.value = this.level;
@@ -109,9 +111,13 @@ export class AudioEngine {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     return this.connectInput(stream, request);
   }
-  private async connectInput(stream: MediaStream, request: number) {
+  private async connectInput(
+    stream: MediaStream,
+    request: number,
+    waitForAudio = true,
+  ) {
     try {
-      await this.activate();
+      await this.activate(waitForAudio);
       if (request !== this.sourceRequest) {
         stream.getTracks().forEach((track) => track.stop());
         return false;

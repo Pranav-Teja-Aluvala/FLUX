@@ -12,6 +12,8 @@ export type Track = {
   crop?: Crop | null;
   caption?: string;
   linked?: boolean;
+  videoId?: string;
+  chapterStart?: number;
 };
 declare global {
   interface Window {

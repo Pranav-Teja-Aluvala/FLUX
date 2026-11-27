@@ -106,8 +106,11 @@ function readPlayer() {
       .join(" ")
       .trim();
   const start = chapter?.start ?? 0;
+  const id = new URL(location.href).searchParams.get("v");
   return {
     title: pair?.[2] || name,
+    videoId: id && /^[a-zA-Z0-9_-]{11}$/.test(id) ? id : undefined,
+    chapterStart: start,
     artist,
     album: "",
     cover: null,

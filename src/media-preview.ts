@@ -15,7 +15,11 @@ declare const chrome: {
 export const inExtension =
   typeof location !== "undefined" && location.protocol === "chrome-extension:";
 const bridgeId = "elkdmnmmhjekdcabldkbngjoohcohimg";
-function messageExtension(type: string, timeoutMs: number): Promise<unknown> {
+function messageExtension(
+  type: string,
+  timeoutMs: number,
+  data?: Record<string, unknown>,
+): Promise<unknown> {
   if (typeof chrome === "undefined" || !chrome.runtime?.sendMessage)
     return Promise.resolve(null);
   return new Promise((resolve) => {
@@ -23,7 +27,7 @@ function messageExtension(type: string, timeoutMs: number): Promise<unknown> {
     try {
       chrome.runtime!.sendMessage(
         inExtension ? (chrome.runtime!.id ?? bridgeId) : bridgeId,
-        { type },
+        { type, ...data },
         (reply) => {
           clearTimeout(timeout);
           resolve(chrome.runtime?.lastError ? null : reply);
@@ -61,7 +65,7 @@ export async function captureLinkedTab(): Promise<MediaStream> {
   };
   return navigator.mediaDevices.getUserMedia({
     audio: source,
-    video: source,
+    video: inExtension ? false : source,
   } as MediaStreamConstraints);
 }
 export function contentCrop(
@@ -127,4 +131,15 @@ export function boundedCrop(crop: Crop | null | undefined): Crop | null {
   const w = Math.min(1, crop.x + crop.w) - x,
     h = Math.min(1, crop.y + crop.h) - y;
   return w >= 0.05 && h >= 0.05 ? { x, y, w, h } : null;
+}
+
+export async function controlYouTube(
+  type: "flux:toggle-play" | "flux:seek-line",
+  data?: Record<string, unknown>,
+) {
+  if (!inExtension) return false;
+  const result = (await messageExtension(type, 1600, data)) as {
+    ok?: boolean;
+  } | null;
+  return result?.ok === true;
 }

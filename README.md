@@ -6,7 +6,9 @@ FLUX is a browser instrument for turning sound into real-time WebGL environments
 
 Build the extension with `npm ci` and `npm run extension`, or use the supplied prebuilt folder. Open `chrome://extensions`, enable **Developer mode**, then choose **Load unpacked** and select the folder containing `manifest.json`. On a YouTube video, click **FLUX** in the toolbar. FLUX opens its own tab and plays the captured audio there. Closing FLUX releases the capture and restores playback to the source tab.
 
-The extension loads the visualizer from its own folder. It reads the explicitly linked tab for artwork, timing, and available captions. LRCLIB provides matching timed lyrics. If the recording has neither timed lyrics nor captions, on-device captioning is available on supported Chrome setups.
+The extension opens a lyrics-first theater with the video thumbnail as its backdrop and Singularity colored by the artwork. The linked tab supplies audio, track metadata, timing, and available captions. Click a timed lyric to seek the source. **Space** toggles playback and **F** switches fullscreen. LRCLIB provides matching timed lyrics. When a recording has no match, FLUX can use the player’s captions or on-device captioning on supported Chrome setups.
+
+For an existing unpacked installation, refresh the same folder through Chrome’s extension page and accept the thumbnail host permission.
 
 [Browser and Windows versions are documented below.](#listening-view)
 

@@ -1,7 +1,9 @@
+import { ExtensionTheater } from "./ExtensionTheater";
 import { useLocalCaptions } from "./captions";
 import {
   boundedCrop,
   contentCrop,
+  controlYouTube,
   inExtension,
   readYouTube,
   type Crop,
@@ -79,6 +81,15 @@ function App() {
     [mic, setMic] = useState(false);
   const [desktop, setDesktop] = useState(false);
   const [shared, setShared] = useState<MediaStream>();
+  const [audioBlocked, setAudioBlocked] = useState(false);
+  useEffect(() => {
+    if (!inExtension || !shared || !engine.context) return;
+    const context = engine.context;
+    const check = () => setAudioBlocked(context.state !== "running");
+    check();
+    context.addEventListener("statechange", check);
+    return () => context.removeEventListener("statechange", check);
+  }, [shared, engine]);
   const [captionFallback, setCaptionFallback] = useState(true);
   const [frameColors, setFrameColors] = useState<CoverPalette>();
   const [visual, setVisual] = useState<"video" | "cover">("video");
@@ -103,6 +114,62 @@ function App() {
   const captureDock = useRef<HTMLDetailsElement>(null);
   const [track, setTrack] = useState<Track | null>(null);
   const playerTrack = browserTrack ?? track;
+  const [thumbnail, setThumbnail] = useState<string>();
+  const [thumbnailPalette, setThumbnailPalette] = useState<CoverPalette>();
+  const thumbnailId = playerTrack?.videoId;
+  useEffect(() => {
+    setThumbnail(undefined);
+    setThumbnailPalette(undefined);
+    if (
+      !inExtension ||
+      !thumbnailId ||
+      !/^[a-zA-Z0-9_-]{11}$/.test(thumbnailId)
+    )
+      return;
+    const controller = new AbortController();
+    let url: string | undefined;
+    async function getArtwork() {
+      for (const rendition of ["hq720", "hqdefault"]) {
+        const response = await fetch(
+          "https://i.ytimg.com/vi/" + thumbnailId + "/" + rendition + ".jpg",
+          { signal: controller.signal },
+        );
+        if (!response.ok) continue;
+        const blob = await response.blob();
+        if (controller.signal.aborted) return;
+        url = URL.createObjectURL(blob);
+        const image = new Image();
+        image.src = url;
+        try {
+          await image.decode();
+        } catch {
+          URL.revokeObjectURL(url);
+          url = undefined;
+          continue;
+        }
+        if (controller.signal.aborted) return;
+        if (image.width < 160) {
+          URL.revokeObjectURL(url);
+          url = undefined;
+          continue;
+        }
+        setThumbnail(url);
+        const sampler = document.createElement("canvas");
+        sampler.width = sampler.height = 48;
+        const ctx = sampler.getContext("2d")!;
+        ctx.drawImage(image, 0, 0, 48, 48);
+        setThumbnailPalette(
+          paletteFromPixels(ctx.getImageData(0, 0, 48, 48).data),
+        );
+        return;
+      }
+    }
+    void getArtwork().catch(() => {});
+    return () => {
+      controller.abort();
+      if (url) URL.revokeObjectURL(url);
+    };
+  }, [thumbnailId]);
   const speech = useLocalCaptions(
     shared?.getAudioTracks()[0],
     captionFallback && !playerTrack?.caption,
@@ -124,12 +191,15 @@ function App() {
   const recorderStarting = useRef(false);
   const recorder = useRef<MediaRecorder | null>(null),
     state = useRef({ scene, settings, reduced, albumColors });
-  const artwork = followCover
-    ? ((visual === "video" && shared ? frameColors : albumColors) ??
-      albumColors)
-    : undefined;
+  const artwork = inExtension
+    ? thumbnailPalette
+    : followCover
+      ? ((visual === "video" && shared ? frameColors : albumColors) ??
+        albumColors)
+      : undefined;
   state.current = {
-    scene: (desktop || mic || playing) && !controls ? 0 : scene,
+    scene:
+      inExtension || ((desktop || mic || playing) && !controls) ? 0 : scene,
     settings,
     reduced,
     albumColors: artwork,
@@ -234,7 +304,8 @@ function App() {
     }
     return Math.max(0, (performance.now() - sharedAt.current) / 1000);
   }
-  const showVideo = !!shared && (visual === "video" || !cover) && !cinema;
+  const showVideo =
+    !inExtension && !!shared && (visual === "video" || !cover) && !cinema;
   useEffect(() => {
     const element = video.current;
     if (!showVideo || !shared || !element) return;
@@ -463,7 +534,8 @@ function App() {
     load(import.meta.env.BASE_URL + "phase-zero.wav", "Phase Zero / FLUX demo");
   async function toggle() {
     if (desktop) {
-      stopDesktop();
+      if (inExtension) await controlYouTube("flux:toggle-play");
+      else stopDesktop();
       return;
     }
     if (mic) {
@@ -520,7 +592,14 @@ function App() {
         void toggle();
       }
 
-      if (e.key.toLowerCase() === "f") setCinema((v) => !v);
+      if (e.key.toLowerCase() === "f") {
+        if (inExtension) {
+          if (document.fullscreenElement)
+            void document.exitFullscreen().catch(() => {});
+          else
+            void document.documentElement.requestFullscreen().catch(() => {});
+        } else setCinema((v) => !v);
+      }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
@@ -609,7 +688,7 @@ function App() {
       recorderStarting.current = false;
     }
   }
-  const listening = (desktop || mic || playing) && !controls;
+  const listening = (desktop || mic || playing) && (inExtension || !controls);
   const extensionIdle = inExtension && !(desktop || mic || playing);
   const activeScene = listening ? 0 : scene;
   const current = scenes[activeScene];
@@ -722,16 +801,34 @@ function App() {
             </div>
           </section>
         )}
-        <Lyrics
-          clock={playbackClock}
-          track={desktop ? playerTrack : null}
-          reading={listening}
-          liveCaption={speech.text}
-          captionState={speech.state}
-          enableCaptions={() => void speech.install()}
-          source={source}
-          live={desktop}
-        />
+        {inExtension && desktop && (
+          <ExtensionTheater
+            active={desktop}
+            track={playerTrack}
+            clock={playbackClock}
+            caption={speech.text}
+            captionState={speech.state}
+            enableCaptions={() => void speech.install()}
+            thumbnail={thumbnail}
+            stop={stopDesktop}
+            audioBlocked={audioBlocked}
+            enableAudio={() =>
+              void engine.activate().catch((e) => setError(message(e)))
+            }
+          />
+        )}
+        {!inExtension && (
+          <Lyrics
+            clock={playbackClock}
+            track={desktop ? playerTrack : null}
+            reading={listening}
+            liveCaption={speech.text}
+            captionState={speech.state}
+            enableCaptions={() => void speech.install()}
+            source={source}
+            live={desktop}
+          />
+        )}
         <section
           className="stage"
           aria-label="Audio-reactive environment"
@@ -745,7 +842,7 @@ function App() {
               revealControlsHint();
           }}
         >
-          {listening && (
+          {listening && !inExtension && (
             <button
               className={
                 controlsHint ? "restore-controls revealed" : "restore-controls"
@@ -756,15 +853,17 @@ function App() {
             </button>
           )}
           <canvas ref={canvas} aria-label={current[0] + " visualization"} />
-          <nav className="visual-modes" aria-label="Visualizer">
-            <button aria-pressed={scene === 0} onClick={() => setScene(0)}>
-              Singularity
-            </button>
-            <button aria-pressed={scene === 5} onClick={() => setScene(5)}>
-              Chromatic
-            </button>
-          </nav>
-          {scene === 5 && (
+          {!inExtension && (
+            <nav className="visual-modes" aria-label="Visualizer">
+              <button aria-pressed={scene === 0} onClick={() => setScene(0)}>
+                Singularity
+              </button>
+              <button aria-pressed={scene === 5} onClick={() => setScene(5)}>
+                Chromatic
+              </button>
+            </nav>
+          )}
+          {!inExtension && scene === 5 && (
             <div
               className="frequency-scale"
               aria-label="Logarithmic frequency axis"
@@ -826,77 +925,79 @@ function App() {
             </p>
           )}
         </section>
-        <aside className="media-pane" aria-label="Now playing video">
-          <header className="pane-header">
-            <h2>Now playing</h2>
-            {desktop && <span className="live-label">Live input</span>}
-          </header>
-          {shared || cover ? (
-            <>
-              <figure className="media-frame">
-                {showVideo ? (
-                  <>
-                    <video
-                      ref={video}
-                      muted
-                      autoPlay
-                      playsInline
-                      hidden
-                      aria-hidden="true"
-                    />
-                    <canvas
-                      ref={preview}
-                      aria-label="Cropped live shared video"
-                    />
-                  </>
-                ) : cover ? (
-                  <img src={cover} alt="Current album artwork" />
-                ) : null}
-              </figure>
-              <div className="media-caption">
-                {playerTrack?.title && <strong>{playerTrack.title}</strong>}
-                {!listening && !playerTrack?.title && (
-                  <strong>Shared video</strong>
+        {!inExtension && (
+          <aside className="media-pane" aria-label="Now playing video">
+            <header className="pane-header">
+              <h2>Now playing</h2>
+              {desktop && <span className="live-label">Live input</span>}
+            </header>
+            {shared || cover ? (
+              <>
+                <figure className="media-frame">
+                  {showVideo ? (
+                    <>
+                      <video
+                        ref={video}
+                        muted
+                        autoPlay
+                        playsInline
+                        hidden
+                        aria-hidden="true"
+                      />
+                      <canvas
+                        ref={preview}
+                        aria-label="Cropped live shared video"
+                      />
+                    </>
+                  ) : cover ? (
+                    <img src={cover} alt="Current album artwork" />
+                  ) : null}
+                </figure>
+                <div className="media-caption">
+                  {playerTrack?.title && <strong>{playerTrack.title}</strong>}
+                  {!listening && !playerTrack?.title && (
+                    <strong>Shared video</strong>
+                  )}
+                  {playerTrack?.artist && <span>{playerTrack.artist}</span>}
+                </div>
+                {shared && cover && (
+                  <div className="media-switch">
+                    <button
+                      aria-pressed={visual === "video"}
+                      onClick={() => setVisual("video")}
+                    >
+                      Video
+                    </button>
+                    <button
+                      aria-pressed={visual === "cover"}
+                      onClick={() => setVisual("cover")}
+                    >
+                      Album art
+                    </button>
+                  </div>
                 )}
-                {playerTrack?.artist && <span>{playerTrack.artist}</span>}
+                {artwork && (
+                  <div
+                    className="palette-strip"
+                    aria-label="Colors sampled from the image"
+                  >
+                    {artwork.map((color, i) => (
+                      <i key={i} style={{ background: color }} />
+                    ))}
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="media-empty">
+                <p>
+                  {inExtension
+                    ? "Play a video on YouTube, then click FLUX in the toolbar."
+                    : "Select Desktop audio to start."}
+                </p>
               </div>
-              {shared && cover && (
-                <div className="media-switch">
-                  <button
-                    aria-pressed={visual === "video"}
-                    onClick={() => setVisual("video")}
-                  >
-                    Video
-                  </button>
-                  <button
-                    aria-pressed={visual === "cover"}
-                    onClick={() => setVisual("cover")}
-                  >
-                    Album art
-                  </button>
-                </div>
-              )}
-              {artwork && (
-                <div
-                  className="palette-strip"
-                  aria-label="Colors sampled from the image"
-                >
-                  {artwork.map((color, i) => (
-                    <i key={i} style={{ background: color }} />
-                  ))}
-                </div>
-              )}
-            </>
-          ) : (
-            <div className="media-empty">
-              <p>
-                {inExtension
-                  ? "Play a video on YouTube, then click FLUX in the toolbar."
-                  : "Select Desktop audio to start."}
-              </p>
-            </div>
-          )}
-        </aside>
+            )}
+          </aside>
+        )}
       </main>
       <div className="bottom-dock">
         <details

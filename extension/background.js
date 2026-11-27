@@ -50,7 +50,14 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
     typeof sender.tab?.id !== "number"
   )
     return false;
-  if (!["flux:read-player", "flux:start-capture"].includes(message?.type))
+  if (
+    ![
+      "flux:read-player",
+      "flux:start-capture",
+      "flux:toggle-play",
+      "flux:seek-line",
+    ].includes(message?.type)
+  )
     return false;
   void (async () => {
     const id = Number(new URL(sender.url).searchParams.get("source"));
@@ -71,6 +78,42 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
         func: readPlayer,
       });
       return sample?.result ?? null;
+    }
+    if (
+      message.type === "flux:toggle-play" ||
+      message.type === "flux:seek-line"
+    ) {
+      const seek = message.type === "flux:seek-line";
+      if (
+        seek &&
+        (!Number.isFinite(message.time) ||
+          typeof message.videoId !== "string" ||
+          !/^[a-zA-Z0-9_-]{11}$/.test(message.videoId))
+      )
+        return { ok: false };
+      const [result] = await chrome.scripting.executeScript({
+        target: { tabId: id },
+        world: "MAIN",
+        args: [seek, message.time, message.videoId],
+        func: async (seek, time, videoId) => {
+          const video = document.querySelector(
+            "#movie_player video, ytmusic-player video",
+          );
+          if (!video) return false;
+          if (seek) {
+            if (
+              new URL(location.href).searchParams.get("v") !== videoId ||
+              !Number.isFinite(video.duration)
+            )
+              return false;
+            video.currentTime = Math.max(0, Math.min(video.duration, time));
+          } else if (video.paused) {
+            await video.play();
+          } else video.pause();
+          return true;
+        },
+      });
+      return { ok: result?.result === true };
     }
     try {
       return {

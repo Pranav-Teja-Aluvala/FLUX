@@ -1,4 +1,11 @@
-import { copyFile, cp, mkdir, readFile } from "node:fs/promises";
+import {
+  copyFile,
+  cp,
+  mkdir,
+  readFile,
+  readdir,
+  unlink,
+} from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
 
@@ -9,6 +16,19 @@ const manifest = JSON.parse(
   await readFile(resolve(root, "extension", "manifest.json"), "utf8"),
 );
 await mkdir(dest, { recursive: true });
+// Prune only our generated hashed bundles when updating an installed folder.
+const assets = resolve(dest, "assets");
+const currentFiles = new Set(await readdir(resolve(build, "assets")));
+await mkdir(assets, { recursive: true });
+for (const old of await readdir(assets, { withFileTypes: true })) {
+  if (
+    old.isFile() &&
+    /^(?:index|graphics)-[\w-]+\.(?:js|css)$/.test(old.name) &&
+    !currentFiles.has(old.name)
+  ) {
+    await unlink(resolve(assets, old.name));
+  }
+}
 await cp(build, dest, {
   recursive: true,
   filter: (path) => !path.endsWith("studio.png"),
