@@ -15,12 +15,18 @@ export function Lyrics({
   source,
   live,
   reading,
+  liveCaption,
+  captionState,
+  enableCaptions,
 }: {
   clock: () => number;
   track: Track | null;
   source: string;
   live: boolean;
   reading: boolean;
+  liveCaption: string;
+  captionState: string;
+  enableCaptions: () => void;
 }) {
   const [title, setTitle] = useState(""),
     [artist, setArtist] = useState("");
@@ -146,13 +152,27 @@ export function Lyrics({
   if (reading && view)
     return (
       <section className="lyrics-pane" aria-label="Live lyrics">
-        {track?.caption ? (
-          <p className="live-caption">{track.caption}</p>
+        {track?.caption || liveCaption ? (
+          <div>
+            <span className="caption-label">Live captions</span>
+            <p className="live-caption">{track?.caption || liveCaption}</p>
+          </div>
+        ) : captionState === "downloadable" && !status.startsWith("Finding") ? (
+          <div className="caption-choice">
+            <p className="lyrics-wait">
+              Timed lyrics unavailable for this recording.
+            </p>
+            <button onClick={enableCaptions}>Enable on-device captions</button>
+          </div>
         ) : (
           <p className="lyrics-wait">
             {status.startsWith("Finding")
               ? "Finding synced lyrics…"
-              : "No synced lyrics available"}
+              : captionState === "listening"
+                ? "Listening for captions…"
+                : captionState === "preparing"
+                  ? "Loading on-device captions…"
+                  : "No synced lyrics or captions available"}
           </p>
         )}
       </section>

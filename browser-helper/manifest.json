@@ -1,9 +1,9 @@
 {
   "manifest_version": 3,
   "name": "FLUX YouTube Link",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Links a YouTube tab to FLUX for player framing, captions, and chapter timing.",
-  "permissions": ["activeTab", "scripting", "storage"],
+  "permissions": ["activeTab", "scripting", "storage", "tabCapture"],
   "action": {
     "default_title": "Link this YouTube tab to FLUX"
   },

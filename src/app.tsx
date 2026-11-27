@@ -1,3 +1,4 @@
+import { useLocalCaptions } from "./captions";
 import {
   boundedCrop,
   contentCrop,
@@ -77,6 +78,7 @@ function App() {
     [mic, setMic] = useState(false);
   const [desktop, setDesktop] = useState(false);
   const [shared, setShared] = useState<MediaStream>();
+  const [captionFallback, setCaptionFallback] = useState(true);
   const [frameColors, setFrameColors] = useState<CoverPalette>();
   const [visual, setVisual] = useState<"video" | "cover">("video");
   const [sources, setSources] = useState<{ id: string; name: string }[]>([]);
@@ -100,6 +102,10 @@ function App() {
   const captureDock = useRef<HTMLDetailsElement>(null);
   const [track, setTrack] = useState<Track | null>(null);
   const playerTrack = browserTrack ?? track;
+  const speech = useLocalCaptions(
+    shared?.getAudioTracks()[0],
+    captionFallback && !playerTrack?.caption,
+  );
   const [albumColors, setAlbumColors] = useState<CoverPalette>();
   const [followCover, setFollowCover] = useState(true);
   const [source, setSource] = useState(""),
@@ -317,6 +323,7 @@ function App() {
     setError("");
     setCapturePending(true);
     try {
+      engine.volume(volume);
       const stream = await engine.desktop(stopDesktop);
       if (stream) {
         sharedAt.current = performance.now();
@@ -669,6 +676,9 @@ function App() {
           clock={playbackClock}
           track={desktop ? playerTrack : null}
           reading={listening}
+          liveCaption={speech.text}
+          captionState={speech.state}
+          enableCaptions={() => void speech.install()}
           source={source}
           live={desktop}
         />
@@ -847,6 +857,23 @@ function App() {
             {desktop ? "Shared video controls" : "Sharing and inputs"}
           </summary>
           <div className="capture-content">
+            {!window.fluxDesktop && (
+              <a
+                href="https://github.com/Pranav-Teja-Aluvala/FLUX#youtube-link-for-chrome"
+                target="_blank"
+                rel="noreferrer"
+              >
+                Set up YouTube Link
+              </a>
+            )}
+            <label>
+              <input
+                type="checkbox"
+                checked={captionFallback}
+                onChange={(e) => setCaptionFallback(e.target.checked)}
+              />{" "}
+              On-device caption fallback
+            </label>
             {window.fluxDesktop?.listSources && !desktop && (
               <>
                 <label>
@@ -935,7 +962,7 @@ function App() {
               title={
                 window.fluxDesktop
                   ? "Capture system audio and the playing window or primary display"
-                  : "Choose a browser tab with audio"
+                  : "Capture the linked YouTube tab"
               }
               onClick={() => void desktopAudio()}
             >

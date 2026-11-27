@@ -1121,3 +1121,21 @@ input[type="checkbox"] {
 .listening .studio {
   display: none;
 }
+
+.caption-label {
+  display: block;
+  color: #92968a;
+  font-size: 11px;
+  margin-bottom: 10px;
+}
+.caption-choice button {
+  font-size: 12px;
+}
+.caption-choice {
+  display: grid;
+  gap: 5px;
+  justify-items: start;
+}
+.capture-content a {
+  color: var(--lime);
+}

@@ -1,3 +1,4 @@
+import { captureLinkedTab } from "./media-preview";
 export type Bands = {
   bass: number;
   mid: number;
@@ -27,6 +28,7 @@ export class AudioEngine {
   private analyser?: AnalyserNode;
   private mic?: MediaStreamAudioSourceNode;
   private gain?: GainNode;
+  private monitor?: GainNode;
   private level = 1;
   private url?: string;
   private mean = 0;
@@ -57,26 +59,38 @@ export class AudioEngine {
   volume(value: number) {
     this.level = value;
     if (this.gain) this.gain.gain.value = value;
+    if (this.monitor) this.monitor.gain.value = value;
   }
   stopMic() {
     this.sourceRequest++;
     this.mic?.disconnect();
+    this.monitor?.disconnect();
+    this.monitor = undefined;
     this.mic?.mediaStream.getTracks().forEach((track) => track.stop());
     this.mic = undefined;
   }
   async desktop(ended: () => void) {
     const request = ++this.sourceRequest;
-    if (!navigator.mediaDevices?.getDisplayMedia)
-      throw Error("Desktop capture is unavailable here.");
-    const stream = await navigator.mediaDevices.getDisplayMedia({
-      video: { frameRate: { ideal: 24, max: 30 }, width: { ideal: 960 } },
-      audio: true,
-    });
+    const native = !!window.fluxDesktop;
+    if (!native) await this.activate();
+    if (request !== this.sourceRequest) return;
+    const stream = native
+      ? await navigator.mediaDevices.getDisplayMedia({
+          video: { frameRate: { ideal: 24, max: 30 }, width: { ideal: 960 } },
+          audio: true,
+        })
+      : await captureLinkedTab();
     if (!stream.getAudioTracks().length) {
       stream.getTracks().forEach((track) => track.stop());
       throw Error("Choose a screen or tab and enable Share audio.");
     }
     const connected = await this.connectInput(stream, request);
+    if (connected && !native) {
+      const monitor = (this.monitor = this.context!.createGain());
+      monitor.gain.value = this.level;
+      this.mic!.connect(monitor);
+      monitor.connect(this.context!.destination);
+    }
     if (connected)
       for (const track of stream.getTracks())
         track.addEventListener(

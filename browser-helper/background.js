@@ -46,15 +46,43 @@ async function snapshot(tabId) {
   return row?.result ?? null;
 }
 chrome.runtime.onMessageExternal.addListener((message, sender, reply) => {
+  if (!sender.url?.startsWith("https://pranav-teja-aluvala.github.io/FLUX/"))
+    return false;
+  if (message?.type === "flux:read-player") {
+    void chrome.storage.session
+      .get("tabId")
+      .then(({ tabId }) => (typeof tabId === "number" ? snapshot(tabId) : null))
+      .then(reply, () => reply(null));
+    return true;
+  }
   if (
-    message?.type !== "flux:read-player" ||
-    !sender.url?.startsWith("https://pranav-teja-aluvala.github.io/FLUX/")
+    message?.type !== "flux:start-capture" ||
+    typeof sender.tab?.id !== "number" ||
+    sender.frameId !== 0
   )
     return false;
-  void chrome.storage.session
-    .get("tabId")
-    .then(({ tabId }) => (typeof tabId === "number" ? snapshot(tabId) : null))
-    .then(reply, () => reply(null));
+  void (async () => {
+    const { tabId } = await chrome.storage.session.get("tabId");
+    if (typeof tabId !== "number")
+      return {
+        error: "Open your music tab and click the FLUX YouTube Link icon once.",
+      };
+    const source = await chrome.tabs.get(tabId).catch(() => null);
+    if (!source || !youtube(source.url))
+      return { error: "Link the YouTube tab you want to play." };
+    try {
+      const streamId = await chrome.tabCapture.getMediaStreamId({
+        targetTabId: tabId,
+        consumerTabId: sender.tab.id,
+      });
+      return { streamId };
+    } catch {
+      return {
+        error:
+          "Chrome could not start this tab. Stop any existing share, then click the FLUX helper on the YouTube tab again.",
+      };
+    }
+  })().then(reply, () => reply({ error: "Could not reach the linked tab." }));
   return true;
 });
 chrome.runtime.onMessage.addListener((message, sender, reply) => {

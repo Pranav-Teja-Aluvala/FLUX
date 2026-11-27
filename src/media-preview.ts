@@ -12,32 +12,50 @@ declare const chrome: {
   };
 };
 const bridgeId = "elkdmnmmhjekdcabldkbngjoohcohimg";
-export function readYouTube(): Promise<Track | null> {
+function messageExtension(type: string, timeoutMs: number): Promise<unknown> {
   if (typeof chrome === "undefined" || !chrome.runtime?.sendMessage)
     return Promise.resolve(null);
   return new Promise((resolve) => {
-    const timeout = window.setTimeout(() => resolve(null), 1300);
+    const timeout = window.setTimeout(() => resolve(null), timeoutMs);
     try {
-      chrome.runtime!.sendMessage(
-        bridgeId,
-        { type: "flux:read-player" },
-        (reply) => {
-          clearTimeout(timeout);
-          if (chrome.runtime?.lastError || !reply || typeof reply !== "object")
-            return resolve(null);
-          const item = reply as Track;
-          resolve(
-            typeof item.title === "string" && typeof item.position === "number"
-              ? item
-              : null,
-          );
-        },
-      );
+      chrome.runtime!.sendMessage(bridgeId, { type }, (reply) => {
+        clearTimeout(timeout);
+        resolve(chrome.runtime?.lastError ? null : reply);
+      });
     } catch {
       clearTimeout(timeout);
       resolve(null);
     }
   });
+}
+export async function readYouTube(): Promise<Track | null> {
+  const reply = await messageExtension("flux:read-player", 1300);
+  if (!reply || typeof reply !== "object") return null;
+  const track = reply as Track;
+  return typeof track.title === "string" && typeof track.position === "number"
+    ? track
+    : null;
+}
+export async function captureLinkedTab(): Promise<MediaStream> {
+  const reply = (await messageExtension("flux:start-capture", 3200)) as {
+    streamId?: string;
+    error?: string;
+  } | null;
+  if (!reply?.streamId)
+    throw Error(
+      reply?.error ||
+        "Install or update FLUX YouTube Link, then click it once on the YouTube tab.",
+    );
+  const source = {
+    mandatory: {
+      chromeMediaSource: "tab",
+      chromeMediaSourceId: reply.streamId,
+    },
+  };
+  return navigator.mediaDevices.getUserMedia({
+    audio: source,
+    video: source,
+  } as MediaStreamConstraints);
 }
 export function contentCrop(
   data: Uint8ClampedArray,
