@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
+import gsap from "gsap";
 import type { Track } from "./desktop";
 import {
   cleanYouTubeTitle,
@@ -55,6 +56,7 @@ export function ExtensionTheater({
   const [lookupFailed, setLookupFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const [liveCaption, setLiveCaption] = useState("");
+  const [following, setFollowing] = useState(true);
   const [observations, setObservations] = useState<{ time: number; text: string }[]>([]);
   const [candidates, setCandidates] = useState<LyricsMatch[]>([]);
   const [lookupComplete, setLookupComplete] = useState(false);
@@ -170,14 +172,34 @@ export function ExtensionTheater({
   useEffect(() => {
     const panel = scroll.current,
       row = highlight.current;
-    if (!panel || !row) return;
-    panel.scrollTo({
-      top: row.offsetTop - panel.clientHeight * 0.43 + row.offsetHeight / 2,
-      behavior: matchMedia("(prefers-reduced-motion:reduce)").matches
-        ? "instant"
-        : "smooth",
+    if (!panel || !row || !following) return;
+    const target = () => Math.max(0, row.offsetTop + row.offsetHeight / 2 -
+      panel.clientHeight * 0.43);
+    const reduced = matchMedia("(prefers-reduced-motion:reduce)").matches;
+    const motion = gsap.to(panel, {
+      scrollTop: target(), duration: reduced ? 0 : 0.68, ease: "power3.out",
+      overwrite: true,
     });
-  }, [index, lines, showSynced]);
+    let width = panel.clientWidth;
+    let height = panel.clientHeight;
+    const resize = new ResizeObserver(() => {
+      if (panel.clientWidth === width && panel.clientHeight === height) return;
+      width = panel.clientWidth;
+      height = panel.clientHeight;
+      motion.kill();
+      panel.scrollTop = target();
+    });
+    resize.observe(panel);
+    return () => {
+      motion.kill();
+      resize.disconnect();
+    };
+  }, [index, lines, showSynced, following]);
+  function browseLyrics() {
+    if (!following) return;
+    if (scroll.current) gsap.killTweensOf(scroll.current);
+    setFollowing(false);
+  }
   useEffect(() => {
     if (!cue) {
       const expire = window.setTimeout(() => setLiveCaption(""), 1600);
@@ -189,12 +211,12 @@ export function ExtensionTheater({
     if (!track?.videoId) return;
     setCommandError("");
     if (
-      !(await controlYouTube("flux:seek-line", {
+      await controlYouTube("flux:seek-line", {
         videoId: track.videoId,
         time: time + (track.chapterStart ?? 0),
-      }))
-    )
-      setCommandError("Could not seek the linked video.");
+      })
+    ) setFollowing(true);
+    else setCommandError("Could not seek the linked video.");
   }
   async function togglePlay() {
     setCommandError("");
@@ -225,6 +247,11 @@ export function ExtensionTheater({
       <div className="theater-copy">
         <header className="theater-lyrics-title">
           <h2>{lyricHeading}</h2>
+          {showSynced && !following && (
+            <button className="theater-follow" onClick={() => setFollowing(true)}>
+              Follow lyrics
+            </button>
+          )}
           <details className="theater-analysis">
             <summary>Audio analysis</summary>
             <div className="theater-analysis-menu">
@@ -271,6 +298,13 @@ export function ExtensionTheater({
             className="theater-lyric-scroll"
             ref={scroll}
             aria-label="Synced lyrics"
+            tabIndex={0}
+            onWheel={browseLyrics}
+            onTouchMove={browseLyrics}
+            onKeyDown={(event) => {
+              if (["ArrowUp", "ArrowDown", "PageUp", "PageDown", "Home", "End"].includes(event.key))
+                browseLyrics();
+            }}
           >
             <ol>
               {lines.map((line, i) =>
