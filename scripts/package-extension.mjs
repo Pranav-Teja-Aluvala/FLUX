@@ -29,6 +29,12 @@ for (const old of await readdir(assets, { withFileTypes: true })) {
     await unlink(resolve(assets, old.name));
   }
 }
+const legacyScenes = ["chromatic", "constellation", "dreamscape", "hyperspace", "liquid", "singularity"];
+for (const scene of legacyScenes) {
+  await unlink(resolve(dest, "scenes", scene + ".webp")).catch((error) => {
+    if (error.code !== "ENOENT") throw error;
+  });
+}
 await cp(build, dest, {
   recursive: true,
 });
@@ -48,7 +54,8 @@ const companionFiles = ["Install-Listening.ps1", "Launcher.cs", "host.py", "requ
 await mkdir(resolve(dest, "listening"), { recursive: true });
 for (const file of companionFiles)
   await copyFile(resolve(root, "listening", file), resolve(dest, "listening", file));
-for (const icon of Object.values(manifest.icons)) {
+await copyFile(resolve(root, "LICENSE"), resolve(dest, "LICENSE"));
+for (const icon of new Set(Object.values(manifest.icons))) {
   await copyFile(resolve(root, "extension", icon), resolve(dest, icon));
 }
 console.log("FLUX " + manifest.version + " extension: " + dest);

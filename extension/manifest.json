@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "FLUX",
   "description": "A one-click listening view for your YouTube tab, with live artwork, visualizer and synced lyrics.",
-  "version": "1.4.4",
+  "version": "1.4.5",
   "minimum_chrome_version": "116",
   "permissions": ["activeTab", "scripting", "storage", "tabCapture", "nativeMessaging"],
   "host_permissions": ["https://lrclib.net/*", "https://i.ytimg.com/*"],

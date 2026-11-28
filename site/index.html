@@ -33,7 +33,7 @@
       <figure class="instrument" aria-label="Interactive audio visualizer">
         <div class="instrument-stage">
           <canvas id="visualizer" aria-hidden="true"></canvas>
-          <img class="stage-fallback" src="../public/scenes/singularity.webp" alt="" />
+          <img class="stage-fallback" src="./media/demo-fallback.webp" alt="" />
           <span class="stage-label" id="demo-state" role="status">Singularity preview</span>
         </div>
         <figcaption class="instrument-dock">
@@ -85,7 +85,7 @@
           <article><h3>Artwork in motion</h3><p>The linked video's thumbnail supplies the theater palette. Singularity reacts to the captured tab audio.</p></article>
           <article><h3>Spectrum in light</h3><p>New sound appears at the inner edge and travels outward. In the extension, Spectrum takes its colors from the video artwork. Drag the demo to turn the aperture.</p></article>
           <article><h3>Playback in sync</h3><p>FLUX uses timed lyrics when it finds a match and falls back to YouTube captions when available. Arrow keys skip five seconds.</p></article>
-          <article><h3>Optional local analysis</h3><p>The Windows companion can separate vocals from backing tracks and generate English captions on your device.</p></article>
+          <article><h3>Optional local analysis</h3><p>The Windows companion separates vocals from backing tracks and generates multilingual captions on your device.</p></article>
         </div>
       </div>
     </section>
@@ -96,11 +96,11 @@
       </div>
       <div class="download-list">
         <article>
-          <div><h3>Chrome extension</h3><p>Unpacked extension for YouTube. Includes the optional Windows companion installer.</p></div>
+          <div><h3>Chrome extension</h3><p>Unpacked extension for Chrome 116+. Includes the optional Windows companion installer. <a id="chrome-checksum" href="./downloads/FLUX-Chrome.zip.sha256">SHA-256 checksum</a></p></div>
           <a id="chrome-download" class="pill primary" href="./downloads/FLUX-Chrome.zip" download>Download ZIP <span aria-hidden="true">↓</span></a>
         </article>
         <article>
-          <div><h3>Windows desktop</h3><p>The portable desktop visualizer with system audio capture.</p></div>
+          <div><h3>Windows desktop</h3><p>The portable desktop visualizer with system audio capture. <a href="https://github.com/Pranav-Teja-Aluvala/FLUX/releases/download/v1.4.3/FLUX-YouTube-Link.zip">YouTube Link helper</a></p></div>
           <a class="pill secondary" href="https://github.com/Pranav-Teja-Aluvala/FLUX/releases/download/v1.4.3/FLUX-Windows-x64.zip">Windows x64 <span aria-hidden="true">↗</span></a>
         </article>
       </div>
@@ -117,8 +117,10 @@
   <footer class="site-footer wrap"><a href="#demo" class="wordmark">FLUX</a><a href="https://github.com/Pranav-Teja-Aluvala/FLUX">Source on GitHub ↗</a></footer>
   <script>
     if (location.protocol === "file:") {
-      document.querySelector("#chrome-download").href =
-        "https://pranav-teja-aluvala.github.io/FLUX/downloads/FLUX-Chrome.zip";
+      for (const id of ["chrome-download", "chrome-checksum"]) {
+        const link = document.getElementById(id);
+        link.href = new URL(link.getAttribute("href"), "https://pranav-teja-aluvala.github.io/FLUX/");
+      }
       const demo = document.createElement("script");
       demo.src = "./.local-preview/flux.js";
       document.body.append(demo);
