@@ -16,6 +16,7 @@ import {
 } from "./caption-lyrics";
 import { controlYouTube } from "./media-preview";
 import type { LocalListening, VoiceMode } from "./local-listening";
+import { captionLanguages } from "./caption-language";
 
 function stamp(t: number) {
   return Math.floor(t / 60) + ":" + String(Math.floor(t % 60)).padStart(2, "0");
@@ -36,6 +37,8 @@ export function ExtensionTheater({
   analysis,
   voiceMode,
   setVoiceMode,
+  speechLanguage,
+  setSpeechLanguage,
 }: {
   scene: 0 | 5;
   setScene: (scene: 0 | 5) => void;
@@ -52,6 +55,8 @@ export function ExtensionTheater({
   analysis: LocalListening;
   voiceMode: VoiceMode;
   setVoiceMode: (mode: VoiceMode) => void;
+  speechLanguage: string;
+  setSpeechLanguage: (language: string) => void;
 }) {
   const [exactLines, setLines] = useState<Line[]>([]),
     [looking, setLooking] = useState(false),
@@ -281,6 +286,19 @@ export function ExtensionTheater({
                   <option value={3}>Three overlapping speakers</option>
                 </select>
               </label>
+              <label>
+                Caption language
+                <select value={speechLanguage} onChange={(event) => setSpeechLanguage(event.target.value)}>
+                  <option value="auto">Automatic</option>
+                  {captionLanguages.map(({ code, name }) => (
+                    <option key={code} value={code}>{name}</option>
+                  ))}
+                </select>
+              </label>
+              <p className="theater-language-note">
+                The Windows companion detects the spoken language in Automatic mode.
+                Browser speech recognition uses your browser language in Automatic mode.
+              </p>
               {voiceMode !== 0 && lines.length > 0 && (
                 <label className="theater-caption-choice">
                   <input type="checkbox" checked={preferLocal} onChange={(event) => setPreferLocal(event.target.checked)} />
@@ -328,7 +346,7 @@ export function ExtensionTheater({
                         aria-current={i === index ? "true" : undefined}
                         onClick={() => void seek(line.time)}
                       >
-                        <span className="theater-lyric-text">{line.text}</span>
+                        <span className="theater-lyric-text" dir="auto">{line.text}</span>
                       </button>
                     ) : (
                       <button
@@ -356,17 +374,17 @@ export function ExtensionTheater({
                   {voiceMode > 1 && (
                     <span>(Voice {line.lane}{overlaps ? " · overlapping" : ""})</span>
                   )}
-                  <p data-current={index === localLines.length - 1}>{line.text}</p>
+                  <p dir="auto" lang={line.language} data-current={index === localLines.length - 1}>{line.text}</p>
                 </div>
               );
             })}
           </div>
         ) : (timedParts.length || visibleCaption) ? (
           <div className="theater-live-caption" aria-live={timedParts.length ? "off" : "polite"}>
-            <p>
+            <p dir="auto">
               {timedParts.length ? timedParts.map((part, index) => (
                 <span key={index} data-spoken={part.time <= position}>
-                  {index ? " " : ""}{part.text}
+                  {index && part.spaceBefore ? " " : ""}{part.text}
                 </span>
               )) : visibleCaption}
             </p>

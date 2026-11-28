@@ -1,5 +1,6 @@
 import { ExtensionTheater } from "./ExtensionTheater";
 import { useLocalCaptions } from "./captions";
+import { browserCaptionLocale, captionLanguage } from "./caption-language";
 import { useLocalListening, type VoiceMode } from "./local-listening";
 import {
   boundedCrop,
@@ -93,6 +94,9 @@ function App() {
     return () => context.removeEventListener("statechange", check);
   }, [shared, engine]);
   const [captionFallback, setCaptionFallback] = useState(true);
+  const [speechLanguage, setSpeechLanguage] = useState(() =>
+    captionLanguage(inExtension ? localStorage.getItem("flux:caption-language") : null),
+  );
   const [voiceMode, setVoiceMode] = useState<VoiceMode>(() => {
     if (!inExtension) return 0;
     const saved = Number(localStorage.getItem("flux:voice-mode"));
@@ -138,6 +142,7 @@ function App() {
     inExtension ? voiceMode : 0,
     listeningKey,
     playerTrack,
+    speechLanguage,
   );
   useEffect(() => {
     setThumbnail(undefined);
@@ -202,6 +207,7 @@ function App() {
     shared?.getAudioTracks()[0],
     captionFallback && !playerTrack?.caption,
     inExtension ? listeningKey : undefined,
+    inExtension ? browserCaptionLocale(speechLanguage, navigator.language) : undefined,
   );
   const [albumColors, setAlbumColors] = useState<CoverPalette>();
   const [followCover, setFollowCover] = useState(true);
@@ -907,6 +913,11 @@ function App() {
             accent={thumbnailPalette?.[2]}
             analysis={localListening}
             voiceMode={voiceMode}
+            speechLanguage={speechLanguage}
+            setSpeechLanguage={(language) => {
+              setSpeechLanguage(language);
+              localStorage.setItem("flux:caption-language", language);
+            }}
             setVoiceMode={(mode) => {
               setVoiceMode(mode);
               localStorage.setItem("flux:voice-mode", String(mode));

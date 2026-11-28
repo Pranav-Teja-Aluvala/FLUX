@@ -2,10 +2,16 @@ import { cleanYouTubeTitle, currentLine, parseLrc, type Line, type LyricsMatch }
 
 export type CaptionCue = { start: number; end: number; text: string };
 type Sample = { time: number; text: string };
+const segmenter = new Intl.Segmenter(undefined, { granularity: "word" });
 
 function words(text: string) {
-  return text.toLowerCase().normalize("NFKC").replace(/[’']/g, "")
-    .match(/[\p{L}\p{N}]+/gu) ?? [];
+  const normalized = text.toLowerCase().normalize("NFKC").replace(/[’']/g, "");
+  if (/[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Thai}\p{Script=Lao}\p{Script=Khmer}\p{Script=Myanmar}]/u.test(normalized)) {
+    return Array.from(segmenter.segment(normalized))
+      .filter(({ isWordLike }) => isWordLike)
+      .map(({ segment }) => segment);
+  }
+  return normalized.match(/[\p{L}\p{N}][\p{L}\p{M}\p{N}]*/gu) ?? [];
 }
 
 export function songCandidates(title: string) {
@@ -50,9 +56,16 @@ export function timedCaptionWindow(cue: CaptionCue, position: number) {
   if (position < cue.start || position >= cue.end) return [];
   const parts = cueParts(cue);
   if (parts.length < 2) return [];
-  const tokens = parts.flatMap(({ time, text }) =>
-    (text.match(/\S+/g) ?? []).map((token) => ({ time, text: token.slice(0, 48) })),
-  );
+  let trailingSpace = false;
+  const tokens = parts.flatMap(({ time, text }) => {
+    const words = Array.from(text.matchAll(/\S+/g), (token, index) => ({
+      time,
+      text: token[0].slice(0, 48),
+      spaceBefore: index > 0 || token.index > 0 || trailingSpace,
+    }));
+    trailingSpace = /\s$/.test(text);
+    return words;
+  });
   const lastSpoken = currentLine(tokens, position);
   if (lastSpoken < 0) return [];
   const start = Math.floor(lastSpoken / 8) * 8;

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 type Availability =
   "available" | "downloadable" | "downloading" | "unavailable";
 type CaptionState =
@@ -35,8 +35,9 @@ type SpeechEngine = {
     processLocally: boolean;
   }): Promise<boolean>;
 };
-const lang = "en-US";
-const options = { langs: [lang], processLocally: true };
+const speechOptions = (language: string) => ({
+  langs: [language], processLocally: true,
+});
 function getSpeech() {
   const ambient = window as Window & {
     SpeechRecognition?: SpeechEngine;
@@ -53,10 +54,13 @@ export function useLocalCaptions(
   track: MediaStreamTrack | undefined,
   enabled: boolean,
   sourceKey?: string,
+  language = "en-US",
 ) {
   const [text, setText] = useState(""),
     [state, setState] = useState<CaptionState>("idle"),
     [reload, setReload] = useState(0);
+  const activeLanguage = useRef(language);
+  activeLanguage.current = language;
   useEffect(() => {
     setText("");
     if (!track || !enabled) {
@@ -82,7 +86,7 @@ export function useLocalCaptions(
         setState("unavailable");
       }
     }
-    void engine.available(options).then(
+    void engine.available(speechOptions(language)).then(
       (availability) => {
         if (done) return;
         if (availability !== "available") {
@@ -100,7 +104,7 @@ export function useLocalCaptions(
           return;
         }
         recognizer.processLocally = true;
-        recognizer.lang = lang;
+        recognizer.lang = language;
         recognizer.continuous = true;
         recognizer.interimResults = true;
         recognizer.onresult = (event) => {
@@ -141,17 +145,15 @@ export function useLocalCaptions(
         } catch {}
       }
     };
-  }, [track, enabled, reload, sourceKey]);
+  }, [track, enabled, reload, sourceKey, language]);
   async function install() {
     const engine = getSpeech();
     if (!engine) return;
     setState("preparing");
-    try {
-      if (await engine.install(options)) setReload((v) => v + 1);
-      else setState("unavailable");
-    } catch {
-      setState("unavailable");
-    }
+    const installed = await engine.install(speechOptions(language)).catch(() => false);
+    if (activeLanguage.current !== language) return;
+    if (installed) setReload((v) => v + 1);
+    else setState("unavailable");
   }
   return { text, state, install };
 }

@@ -5,6 +5,18 @@ using System.Threading.Tasks;
 
 internal static class Launcher
 {
+    private static async Task Relay(Stream source, Stream destination)
+    {
+        var buffer = new byte[64 * 1024];
+        int count;
+        while ((count = await source.ReadAsync(buffer, 0, buffer.Length)) != 0)
+        {
+            await destination.WriteAsync(buffer, 0, count);
+            // Native messages must arrive even when neither side has more data to send.
+            await destination.FlushAsync();
+        }
+    }
+
     private static int Main()
     {
         try
@@ -22,8 +34,8 @@ internal static class Launcher
             };
             using (var child = Process.Start(start))
             {
-                var incoming = Console.OpenStandardInput().CopyToAsync(child.StandardInput.BaseStream);
-                var outgoing = child.StandardOutput.BaseStream.CopyToAsync(Console.OpenStandardOutput());
+                var incoming = Relay(Console.OpenStandardInput(), child.StandardInput.BaseStream);
+                var outgoing = Relay(child.StandardOutput.BaseStream, Console.OpenStandardOutput());
                 Task.WhenAny(incoming, outgoing).GetAwaiter().GetResult();
                 if (!child.HasExited) child.Kill();
                 return 0;

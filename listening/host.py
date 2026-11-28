@@ -93,20 +93,23 @@ class Listener:
             )
         return self.separators[voices]
 
-    def transcribe(self, samples, rate, lane):
+    def transcribe(self, samples, rate, lane, language):
         if level(samples) < 0.002:
             return []
         waveform = self.resample(samples.float().cpu(), rate, 16000).numpy()
-        segments, _ = self.whisper.transcribe(
-            waveform, language="en", beam_size=2, temperature=0,
+        segments, info = self.whisper.transcribe(
+            waveform, language=language, task="transcribe", beam_size=2, temperature=0,
             vad_filter=True, vad_parameters={"min_silence_duration_ms": 220},
             condition_on_previous_text=False,
         )
+        if language is None and info.language_probability < 0.5:
+            return []
         return [
-            {"text": text, "start": segment.start, "end": segment.end, "lane": lane}
+            {"text": text, "start": segment.start, "end": segment.end, "lane": lane,
+             "language": "jv" if info.language == "jw" else info.language}
             for segment in segments
             if (text := segment.text.strip()) and segment.avg_logprob >= -1.0
-            and segment.no_speech_prob < 0.6
+            and segment.no_speech_prob < 0.6 and segment.compression_ratio <= 2.4
         ]
 
     def tone_presence(self, mono):
@@ -125,9 +128,11 @@ class Listener:
         tonal = visible & (peak_fraction > 0.93)
         return bool(tonal.any()), bool(tonal.all())
 
-    def analyze(self, audio, rate, voices):
+    def analyze(self, audio, rate, voices, language=None):
         import numpy as np
 
+        if language is not None and language not in self.whisper.supported_languages:
+            raise ValueError("Unsupported caption language.")
         if len(audio) % 4 or not 2 * rate <= len(audio) // 4 <= 7 * rate:
             raise ValueError("Audio must be a stereo PCM window.")
         samples = np.frombuffer(audio, dtype="<i2").astype(np.float32)
@@ -152,7 +157,7 @@ class Listener:
             if has_music and vocal_level < max(0.002, mix_level * 0.075):
                 lines = []
             elif voices == 1:
-                lines = self.transcribe(voice_mix, self.demucs_rate, 1)
+                lines = self.transcribe(voice_mix, self.demucs_rate, 1, language)
             else:
                 separator = self.get_separator(voices)
                 voice_rate = int(separator.hparams.sample_rate)
@@ -161,7 +166,7 @@ class Listener:
                 lines = []
                 for lane, stem in enumerate(sources.T, 1):
                     if level(stem) >= max(0.002, level(signal) * 0.12):
-                        lines.extend(self.transcribe(stem, voice_rate, lane))
+                        lines.extend(self.transcribe(stem, voice_rate, lane, language))
             lines.sort(key=lambda line: (line["start"], line["lane"]))
             sounds = []
             if has_tone:
@@ -192,7 +197,7 @@ def main():
         serial = request.get("id")
         try:
             if request.get("type") == "hello":
-                send({"type": "ready", "protocol": 1})
+                send({"type": "ready", "protocol": 1, "multilingual": True})
                 continue
             rate = request["rate"]
             voices = request["voices"]
@@ -204,7 +209,7 @@ def main():
                 listener = Listener()
             if voices > 1 and voices not in listener.separators:
                 send({"type": "loading", "id": serial})
-            reply = listener.analyze(stereo, rate, voices)
+            reply = listener.analyze(stereo, rate, voices, request.get("language", "en"))
             send({"type": "analysis", "id": serial, **reply})
         except Exception as error:
             print(f"FLUX listening: {type(error).__name__}: {error}", file=sys.stderr)

@@ -1382,6 +1382,16 @@ input[type="checkbox"] {
   border-radius: 8px;
   box-shadow: 0 12px 35px #0006;
 }
+.theater-analysis[open] .theater-analysis-menu {
+  display: grid;
+  gap: 10px;
+}
+.theater-language-note {
+  margin: 0;
+  color: #b8b7c2;
+  font-size: .75rem;
+  line-height: 1.45;
+}
 .theater-analysis-menu select {
   display: block;
   width: 100%;

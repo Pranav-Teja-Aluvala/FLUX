@@ -34,6 +34,8 @@ These screenshots were captured in Chrome with a controlled track, original fixt
 
 For the Windows listening companion, run `listening/Install-Listening.ps1` from the extracted folder using 64-bit Python 3.10–3.13. The optional `-PrepareModels` flag fetches the model weights during setup. In FLUX, enable it under **Audio analysis**. **Show local captions** lets you switch from synced lyrics to the model's output. Results arrive after each five-second sample plus processing time, and dense mixes may produce inaccurate words.
 
+Under **Audio analysis → Caption language**, choose **Automatic** or select a language. The Windows companion uses the multilingual Whisper model to transcribe in the original language. In overlapping-speaker modes, Automatic detects the language independently for each separated voice. Short clips and singing can be harder to identify, so use the language override when needed. The browser's local speech recognition uses your browser language in Automatic mode and requires an available language pack. YouTube captions and synced lyrics follow the source text. If you installed the Windows companion before Chrome extension 1.4.4, run the installer from the updated download to enable multilingual analysis.
+
 ## Build and test
 
 ```sh

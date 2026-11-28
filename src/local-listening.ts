@@ -6,6 +6,7 @@ type ListeningLine = {
   start: number;
   end: number;
   lane: number;
+  language?: string;
 };
 
 type Analysis = {
@@ -14,7 +15,7 @@ type Analysis = {
 };
 
 type Reply =
-  | { type: "ready"; protocol: number }
+  | { type: "ready"; protocol: number; multilingual?: boolean }
   | { type: "loading"; id: number }
   | { type: "error"; id: number; message: string }
   | ({ type: "analysis"; id: number } & Analysis);
@@ -50,6 +51,7 @@ export function useLocalListening(
   mode: VoiceMode,
   sourceKey: string,
   track: Track | null,
+  language: string,
 ) {
   const enabled = mode !== 0;
   const playing = !!track?.playing && !track.buffering;
@@ -65,7 +67,7 @@ export function useLocalListening(
   useEffect(() => {
     setResult(undefined);
     reset.current?.();
-  }, [sourceKey, mode, playing]);
+  }, [sourceKey, mode, playing, language]);
 
   useEffect(() => {
     const previous = priorPlayback.current;
@@ -130,6 +132,7 @@ export function useLocalListening(
         port!.postMessage({
           type: "analyze", id, voices: settings.current.mode,
           rate: context!.sampleRate, audio: encode(audio),
+          language: language === "auto" ? null : language,
         });
         responseTimer = window.setTimeout(
           () => fail("Audio analysis stopped responding. Try again."), 45_000,
@@ -153,8 +156,10 @@ export function useLocalListening(
         port.onMessage.addListener((reply) => {
           if (!active || failed) return;
           if (reply.type === "ready") {
-            if (reply.protocol === 1) setStatus("listening");
-            else fail("Update the local FLUX listening companion.");
+            if (reply.protocol !== 1) fail("Update the local FLUX listening companion.");
+            else if (language !== "en" && !reply.multilingual)
+              fail("Update the Windows listening companion to use multilingual captions.");
+            else setStatus("listening");
             return;
           }
           if (reply.id !== pending?.id) return;
@@ -220,7 +225,7 @@ export function useLocalListening(
       stopAudio();
       port?.disconnect();
     };
-  }, [enabled, context, stream, attempt]);
+  }, [enabled, context, stream, attempt, language]);
 
   return { status, error, result, retry: () => setAttempt((value) => value + 1) };
 }
