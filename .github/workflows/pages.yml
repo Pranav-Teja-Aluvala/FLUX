@@ -4,6 +4,7 @@ on:
     branches: [main]
   workflow_dispatch:
 permissions:
+  actions: read
   contents: read
   pages: write
   id-token: write
@@ -12,6 +13,8 @@ concurrency:
   cancel-in-progress: true
 jobs:
   deploy:
+    env:
+      PAGES_ARTIFACT: github-pages-${{ github.run_attempt }}
     environment:
       name: github-pages
       url: ${{ steps.pages.outputs.page_url }}
@@ -29,6 +32,21 @@ jobs:
       - run: python scripts/archive-extension.py
       - uses: actions/upload-pages-artifact@v3
         with:
+          name: ${{ env.PAGES_ARTIFACT }}
           path: dist-pages
+      - name: Wait for Pages artifact metadata
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for attempt in {1..12}; do
+            if count=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/artifacts?name=$PAGES_ARTIFACT" --jq '.total_count') && [ "$count" = 1 ]; then
+              exit 0
+            fi
+            sleep 3
+          done
+          echo "::error::The Pages artifact did not become visible."
+          exit 1
       - uses: actions/deploy-pages@v4
         id: pages
+        with:
+          artifact_name: ${{ env.PAGES_ARTIFACT }}
