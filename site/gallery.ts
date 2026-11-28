@@ -63,5 +63,6 @@ new IntersectionObserver(([entry]) => {
   }
   syncTimer();
 }, { threshold: 0.35 }).observe(gallery);
+show(0);
 controls.hidden = false;
 syncTimer();
