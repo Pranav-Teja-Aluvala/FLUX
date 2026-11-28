@@ -93,7 +93,11 @@ function App() {
     return () => context.removeEventListener("statechange", check);
   }, [shared, engine]);
   const [captionFallback, setCaptionFallback] = useState(true);
-  const [voiceMode, setVoiceMode] = useState<VoiceMode>(0);
+  const [voiceMode, setVoiceMode] = useState<VoiceMode>(() => {
+    if (!inExtension) return 0;
+    const saved = Number(localStorage.getItem("flux:voice-mode"));
+    return saved === 1 || saved === 2 || saved === 3 ? saved : 0;
+  });
   const [frameColors, setFrameColors] = useState<CoverPalette>();
   const [visual, setVisual] = useState<"video" | "cover">("video");
   const [sources, setSources] = useState<{ id: string; name: string }[]>([]);
@@ -905,6 +909,7 @@ function App() {
             voiceMode={voiceMode}
             setVoiceMode={(mode) => {
               setVoiceMode(mode);
+              localStorage.setItem("flux:voice-mode", String(mode));
               if (mode !== 0 && audioBlocked)
                 void engine.activate().catch((e) => setError(message(e)));
             }}

@@ -2,6 +2,7 @@ import gsap from "gsap";
 import { AudioEngine } from "../src/audio";
 import { defaults } from "../src/settings";
 import { mountGraphics } from "../src/graphics";
+import type { CoverPalette } from "../src/desktop";
 import demo from "../public/phase-zero.wav?url";
 import "./gallery";
 
@@ -12,6 +13,7 @@ const canvas = document.querySelector<HTMLCanvasElement>("#visualizer")!;
 const modes = [...document.querySelectorAll<HTMLButtonElement>("[data-scene]")];
 const engine = new AudioEngine();
 const settings = { ...defaults, camera: 0.22, density: 0.72 };
+const demoArtwork: CoverPalette = ["#5b84bb", "#baadf9", "#e5f2ff"];
 const reduced = matchMedia("(prefers-reduced-motion: reduce)");
 let scene = 0;
 let transition: gsap.core.Timeline | undefined;
@@ -24,7 +26,7 @@ stageObserver.observe(stage);
 try {
   mountGraphics(canvas, engine, () => ({
     scene, settings, reduced: reduced.matches,
-    albumColors: ["#5b84bb", "#baadf9", "#e5f2ff"],
+    albumColors: scene === 0 ? demoArtwork : undefined,
   }), () => {}, () => stageInView && !document.hidden);
   stage.dataset.ready = "true";
   live.textContent = "Ready to play";

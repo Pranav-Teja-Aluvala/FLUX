@@ -134,7 +134,8 @@ class Listener:
         mix = self.torch.from_numpy(samples.reshape(-1, 2).T.copy()) / 32768
         with self.torch.inference_mode():
             mix = self.resample(mix.to(self.device), rate, self.demucs_rate)
-            if level(mix) < 0.001:
+            mix_level = level(mix)
+            if mix_level < 0.001:
                 return {"sounds": [], "lines": []}
             mono = mix.mean(0)
             has_tone, tone_only = self.tone_presence(mono)
@@ -145,9 +146,12 @@ class Listener:
             stems = self.demucs(((mix - mean) / scale).unsqueeze(0))[0] * scale
             vocals = stems[self.vocal_index].mean(0)
             backing = stems.sum(0) - stems[self.vocal_index]
-            has_music = level(backing) > max(0.004, level(mix) * 0.24)
-            voice_mix = vocals if has_music and level(vocals) > 0.002 else mono
-            if voices == 1:
+            vocal_level = level(vocals)
+            has_music = level(backing) > max(0.004, mix_level * 0.24)
+            voice_mix = vocals if has_music else mono
+            if has_music and vocal_level < max(0.002, mix_level * 0.075):
+                lines = []
+            elif voices == 1:
                 lines = self.transcribe(voice_mix, self.demucs_rate, 1)
             else:
                 separator = self.get_separator(voices)
@@ -164,7 +168,7 @@ class Listener:
                 sounds.append("Tone")
             if has_music:
                 sounds.append("Music")
-            if lines or level(vocals) > 0.008:
+            if lines or vocal_level > max(0.008, mix_level * 0.13):
                 sounds.append("Vocals")
             return {"sounds": sounds, "lines": lines}
 

@@ -99,8 +99,15 @@ export function useLocalListening(
     let mute: GainNode | undefined;
     let serial = 0;
     let generation = 0;
-    let pending: { id: number; generation: number } | undefined;
+    let responseTimer = 0;
+    let expiryTimer = 0;
+    type AudioWindow = { audio: ArrayBuffer; capturedAt: number };
+    let latestAudio: AudioWindow | undefined;
+    let pending: { id: number; generation: number; capturedAt: number } | undefined;
     function stopAudio() {
+      window.clearTimeout(responseTimer);
+      window.clearTimeout(expiryTimer);
+      latestAudio = undefined;
       reset.current = undefined;
       if (capture) capture.port.onmessage = null;
       input?.disconnect();
@@ -110,10 +117,26 @@ export function useLocalListening(
     function fail(message: string) {
       if (!active || failed) return;
       failed = true;
+      setResult(undefined);
       setError(message);
       setStatus("error");
       stopAudio();
       port?.disconnect();
+    }
+    function sendAudio({ audio, capturedAt }: AudioWindow) {
+      const id = ++serial;
+      pending = { id, generation, capturedAt };
+      try {
+        port!.postMessage({
+          type: "analyze", id, voices: settings.current.mode,
+          rate: context!.sampleRate, audio: encode(audio),
+        });
+        responseTimer = window.setTimeout(
+          () => fail("Audio analysis stopped responding. Try again."), 45_000,
+        );
+      } catch {
+        fail("Could not send audio to the local listening companion.");
+      }
     }
     async function setup() {
       setError("");
@@ -137,17 +160,30 @@ export function useLocalListening(
           if (reply.id !== pending?.id) return;
           if (reply.type === "loading") {
             setStatus("loading");
+            window.clearTimeout(responseTimer);
+            responseTimer = window.setTimeout(
+              () => fail("The local models did not finish loading. Try again."), 240_000,
+            );
             return;
           }
-          const current = pending.generation === generation;
+          window.clearTimeout(responseTimer);
+          const maxAge = settings.current.mode > 1 ? 25_000 : 15_000;
+          const current = pending.generation === generation &&
+            performance.now() - pending.capturedAt <= maxAge;
           pending = undefined;
           if (reply.type === "error") {
             fail(reply.message);
             return;
           }
-          if (current && settings.current.playing)
+          if (current && settings.current.playing) {
             setResult({ sounds: reply.sounds, lines: reply.lines });
+            window.clearTimeout(expiryTimer);
+            expiryTimer = window.setTimeout(() => setResult(undefined), 10_000);
+          }
           setStatus("listening");
+          const next = latestAudio;
+          latestAudio = undefined;
+          if (next && settings.current.playing) sendAudio(next);
         });
         port.postMessage({ type: "hello" });
         if (context!.sampleRate !== 44100 && context!.sampleRate !== 48000)
@@ -164,23 +200,15 @@ export function useLocalListening(
         capture.connect(mute).connect(context!.destination);
         reset.current = () => {
           generation++;
+          latestAudio = undefined;
+          window.clearTimeout(expiryTimer);
           capture?.port.postMessage("reset");
         };
         capture.port.onmessage = ({ data }: MessageEvent<ArrayBuffer>) => {
-          if (!active || pending || !settings.current.playing) return;
-          const id = ++serial;
-          pending = { id, generation };
-          try {
-            port!.postMessage({
-              type: "analyze",
-              id,
-              voices: settings.current.mode,
-              rate: context!.sampleRate,
-              audio: encode(data),
-            });
-          } catch {
-            fail("Could not send audio to the local listening companion.");
-          }
+          if (!active || failed || !settings.current.playing) return;
+          const packet = { audio: data, capturedAt: performance.now() };
+          if (pending) latestAudio = packet;
+          else sendAudio(packet);
         };
       } catch (cause) {
         fail(cause instanceof Error ? cause.message : "Could not start local listening.");

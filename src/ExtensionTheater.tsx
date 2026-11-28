@@ -61,6 +61,7 @@ export function ExtensionTheater({
   const [attempt, setAttempt] = useState(0);
   const [liveCaption, setLiveCaption] = useState("");
   const [following, setFollowing] = useState(true);
+  const [preferLocal, setPreferLocal] = useState(false);
   const [observations, setObservations] = useState<{ time: number; text: string }[]>([]);
   const [candidates, setCandidates] = useState<LyricsMatch[]>([]);
   const [lookupComplete, setLookupComplete] = useState(false);
@@ -87,8 +88,8 @@ export function ExtensionTheater({
   const lines = exactLines.length ? exactLines : activeMatch?.lines ?? exactLines;
   const identified = !exactLines.length ? activeMatch?.recording : undefined;
   const index = currentLine(lines, position);
-  const localLines = analysis.result?.lines.slice(-3) ?? [];
-  const showSynced = lines.length > 0 && !(voiceMode > 1 && localLines.length);
+  const localLines = voiceMode ? analysis.result?.lines.slice(-3) ?? [] : [];
+  const showSynced = lines.length > 0 && !(preferLocal && localLines.length);
   const timedParts = nativeCue ? timedCaptionWindow(nativeCue, position) : [];
   const visibleCaption = nativeCue && (position < nativeCue.start || position >= nativeCue.end)
     ? "" : liveCaption;
@@ -280,18 +281,18 @@ export function ExtensionTheater({
                   <option value={3}>Three overlapping speakers</option>
                 </select>
               </label>
-              {analysis.error && (
-                <>
-                  <p role="alert">{analysis.error}</p>
-                  <button onClick={analysis.retry}>Retry</button>
-                </>
+              {voiceMode !== 0 && lines.length > 0 && (
+                <label className="theater-caption-choice">
+                  <input type="checkbox" checked={preferLocal} onChange={(event) => setPreferLocal(event.target.checked)} />
+                  Show local captions
+                </label>
               )}
             </div>
           </details>
           {voiceMode !== 0 && (
             <div className="theater-sounds" role="status">
               {analysis.status === "error"
-                ? "Audio analysis unavailable"
+                ? <><span>{analysis.error}</span><button onClick={analysis.retry}>Retry audio analysis</button></>
                 : analysis.status === "loading"
                   ? "Loading local models…"
                   : analysis.status === "connecting"
@@ -299,7 +300,7 @@ export function ExtensionTheater({
                     : analysis.status === "listening" && !analysis.result && track?.playing
                       ? "Analyzing audio…"
                       : (analysis.result?.sounds ?? []).map((sound) => (
-                          <span key={sound}>({sound})</span>
+                          <span className="theater-sound" key={sound}>({sound})</span>
                         ))}
             </div>
           )}

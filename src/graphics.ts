@@ -15,7 +15,7 @@ const scenePalettes = [
   ["#18b9ad", "#ff914d", "#a6fff2"],
   ["#31459a", "#ff839d", "#64ecd6"],
   ["#4888ac", "#edf0de", "#acd7ed"],
-  ["#144de7", "#fa6223", "#ffe38d"],
+  ["#954af2", "#2c86ff", "#27edce"],
 ];
 const sceneColors = scenePalettes.map((p) => p.map((c) => new T.Color(c)));
 const colors = palettes.map((p) => p.map((c) => new T.Color(c)));
@@ -443,6 +443,7 @@ export function mountGraphics(
       const hz = (engine.context?.sampleRate ?? 48000) / 2048;
       spectrum.sample(engine.bins, hz, dt, s.bass, s.mid, s.treble);
       spectrum.view(camera.aspect, drag, reduced ? 0 : b.beat);
+      spectrum.setPalette(u.a.value, u.b.value, u.c.value);
     }
     lineMaterial.color
       .copy(colorset[0])

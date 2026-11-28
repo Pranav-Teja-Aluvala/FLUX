@@ -15,7 +15,7 @@
 These screenshots were captured in Chrome with a controlled track, original fixture lyrics, and actual tab audio capture.
 
 - **Follow playback.** The current line eases into view. Scroll to browse, click a lyric to seek, or select **Follow lyrics** to return to the current line.
-- **See the frequency history.** Switch to **Spectrum** for a circular spectrogram driven by captured audio. Current sound lights the inner edge and older sound fades outward. Drag to rotate it in the [browser demo](https://pranav-teja-aluvala.github.io/FLUX/#demo).
+- **See the frequency history.** Switch to **Spectrum** for a circular spectrogram driven by captured audio. The rim and trails pick up the current video's artwork colors. Current sound lights the inner edge and older sound fades outward. Drag to rotate it in the [browser demo](https://pranav-teja-aluvala.github.io/FLUX/#demo).
 - **Keep reading on edits.** FLUX matches exact recordings against [LRCLIB](https://lrclib.net/). When the first lookup misses, it can compare likely songs with YouTube captions and align a confirmed section. Caption tracks with word timings highlight words as they arrive.
 - **Listen locally.** The optional Windows companion uses Hybrid Demucs, Whisper, and SepFormer to separate voices and transcribe English audio. Audio processing stays on the device.
 
@@ -32,7 +32,7 @@ These screenshots were captured in Chrome with a controlled track, original fixt
 | F | Toggle fullscreen |
 | Follow lyrics | Resume automatic lyric scrolling |
 
-For the Windows listening companion, run `listening/Install-Listening.ps1` from the extracted folder using 64-bit Python 3.10–3.13. The optional `-PrepareModels` flag fetches the model weights during setup. In FLUX, enable it under **Audio analysis**. Results arrive after each five-second sample plus processing time, and dense mixes may produce inaccurate words.
+For the Windows listening companion, run `listening/Install-Listening.ps1` from the extracted folder using 64-bit Python 3.10–3.13. The optional `-PrepareModels` flag fetches the model weights during setup. In FLUX, enable it under **Audio analysis**. **Show local captions** lets you switch from synced lyrics to the model's output. Results arrive after each five-second sample plus processing time, and dense mixes may produce inaccurate words.
 
 ## Build and test
 

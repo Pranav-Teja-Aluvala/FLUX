@@ -37,14 +37,12 @@ const vertex = `
 const fragment = `
   uniform sampler2D history;
   uniform float head, aspect, rotation, pulse;
+  uniform vec3 bassTint, midTint, trebleTint;
   varying vec2 point;
 
   vec3 frequencyColor(float f) {
-    vec3 violet = vec3(.30, .068, .89);
-    vec3 blue = vec3(.025, .24, 1.);
-    vec3 teal = vec3(.02, .84, .62);
-    vec3 color = mix(violet, blue, smoothstep(.05, .55, f));
-    return mix(color, teal, smoothstep(.44, .94, f));
+    vec3 color = mix(bassTint, midTint, smoothstep(.05, .55, f));
+    return mix(color, trebleTint, smoothstep(.44, .94, f));
   }
 
   float field(float frequency, float age) {
@@ -79,15 +77,15 @@ const fragment = `
     float streak = smoothstep(.09, .54, signal) * bandLight;
 
     vec3 ink = frequencyColor(frequency);
-    vec3 white = vec3(.67, .86, 1.);
-    vec3 color = vec3(.0015, .0018, .0031);
-    color += vec3(.006, .006, .025) * exp(-radius * radius * 4.5);
+    vec3 highlight = mix(ink, vec3(1.), .56);
+    vec3 color = vec3(.0018);
+    color += mix(bassTint, midTint, .42) * .032 * exp(-radius * radius * 4.5);
     color += ink * intensity * (.89 + streak * .47) * textureLight;
-    color += mix(ink, white, .54) * pow(signal, 3.5) * inside * outside * .7;
+    color += highlight * pow(signal, 3.5) * inside * outside * .7;
     color += ink * fringe * pow(fresh, 1.5) * .19;
-    color += mix(ink, white, .76) * edge * (.035 + fresh * .92);
+    color += highlight * edge * (.035 + fresh * .92);
     float outerRim = exp(-abs(radius - .816) * 175.);
-    color += vec3(.039, .053, .089) * outerRim * (.30 + intensity);
+    color += mix(ink, highlight, .25) * .12 * outerRim * (.30 + intensity);
     float grain = fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(.06711056, .00583715))));
     color += (grain - .38) * .0012;
     gl_FragColor = vec4(max(vec3(0.), color), 1.);
@@ -107,6 +105,9 @@ export function createSpectrum() {
     aspect: { value: 1 },
     rotation: { value: 0 },
     pulse: { value: 0 },
+    bassTint: { value: new THREE.Color() },
+    midTint: { value: new THREE.Color() },
+    trebleTint: { value: new THREE.Color() },
   };
   const geometry = new THREE.PlaneGeometry(2, 2);
   const material = new THREE.ShaderMaterial({ uniforms, vertexShader: vertex, fragmentShader: fragment });
@@ -153,6 +154,11 @@ export function createSpectrum() {
       uniforms.aspect.value = aspect;
       uniforms.rotation.value = rotation;
       uniforms.pulse.value = pulse;
+    },
+    setPalette(bass: THREE.Color, mid: THREE.Color, treble: THREE.Color) {
+      uniforms.bassTint.value.copy(bass);
+      uniforms.midTint.value.copy(mid);
+      uniforms.trebleTint.value.copy(treble);
     },
     dispose() {
       geometry.dispose();
